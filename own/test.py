@@ -24,7 +24,7 @@ def read_last_showdown_message():
 
 def send_message_to_showdown(message):
 	# write to stdout (which is piped directly into stdin of pokemon-showdown)
-	print(message, end='')
+	print(message, end='', flush=True)
 
 def record_message_to_memory(message):
 	fmemory = open(root + memory, mode='a')
@@ -33,7 +33,6 @@ def record_message_to_memory(message):
 
 
 # empty files
-
 empty_files()
 
 inputs = [
@@ -42,32 +41,20 @@ inputs = [
 	'>player p2 {"name":"Lars"}'
 ]
 
-record_message_to_memory('AAAAAAAAAAA' + '\n')
-
 
 for line in inputs:
 
-	time.sleep(0.5)
+	#time.sleep(0.5)
 
 	# send to showdown
 	send_message_to_showdown(line + '\n')
 	record_message_to_memory(line + '\n')
 
-	record_message_to_memory('BLALALALALALALLALALALALLALALAL' + '\n')
-
 	# receive from showdown 
 
-	time.sleep(3.0)
+	time.sleep(0.5)
 
 
 	message = read_last_showdown_message()
-	record_message_to_memory(message + '0329203940293402340923940234029342304\n')
+	record_message_to_memory(message + '\n')
 
-
-	record_message_to_memory('XXXXXXXXXXXXXX' + '\n')
-
-
-
-
-
-record_message_to_memory('ZZZZZZZZZZZ' + '\n')

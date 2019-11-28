@@ -1,14 +1,40 @@
-AAAAAAAAAAA
 >start {"formatid":"gen7randombattle"}
-BLALALALALALALLALALALALLALALAL
-0329203940293402340923940234029342304
-XXXXXXXXXXXXXX
+
 >player p1 {"name":"Scott"}
-BLALALALALALALLALALALALLALALAL
-0329203940293402340923940234029342304
-XXXXXXXXXXXXXX
+update
+|player|p1|Scott||
+
+
 >player p2 {"name":"Lars"}
-BLALALALALALALLALALALALLALALAL
-0329203940293402340923940234029342304
-XXXXXXXXXXXXXX
-ZZZZZZZZZZZ
+update
+|player|p1|Scott||
+
+sideupdate
+p1
+|request|{"active":[{"moves":[{"move":"Fire Punch","id":"firepunch","pp":24,"maxpp":24,"target":"normal","disabled":false},{"move":"Superpower","id":"superpower","pp":8,"maxpp":8,"target":"normal","disabled":false},{"move":"Taunt","id":"taunt","pp":32,"maxpp":32,"target":"normal","disabled":false},{"move":"Psycho Boost","id":"psychoboost","pp":8,"maxpp":8,"target":"normal","disabled":false}]}],"side":{"name":"Scott","id":"p1","pokemon":[{"ident":"p1: Deoxys","details":"Deoxys, L78","condition":"206/206","active":true,"stats":{"atk":279,"def":123,"spa":279,"spd":123,"spe":279},"moves":["firepunch","superpower","taunt","psychoboost"],"baseAbility":"pressure","item":"focussash","pokeball":"pokeball","ability":"pressure"},{"ident":"p1: Crawdaunt","details":"Crawdaunt, L82, F","condition":"237/237","active":false,"stats":{"atk":244,"def":187,"spa":195,"spd":137,"spe":137},"moves":["knockoff","superpower","swordsdance","aquajet"],"baseAbility":"adaptability","item":"lifeorb","pokeball":"pokeball","ability":"adaptability"},{"ident":"p1: Sawsbuck","details":"Sawsbuck, L89, F","condition":"287/287","active":false,"stats":{"atk":229,"def":175,"spa":158,"spd":175,"spe":220},"moves":["substitute","swordsdance","jumpkick","hornleech"],"baseAbility":"sapsipper","item":"leftovers","pokeball":"pokeball","ability":"sapsipper"},{"ident":"p1: Diancie","details":"Diancie, L80","condition":"211/211","active":false,"stats":{"atk":206,"def":286,"spa":206,"spd":286,"spe":126},"moves":["diamondstorm","earthpower","hiddenpowerfire60","moonblast"],"baseAbility":"clearbody","item":"diancite","pokeball":"pokeball","ability":"clearbody"},{"ident":"p1: Kyurem","details":"Kyurem-Black, L80","condition":"331/331","active":false,"stats":{"atk":318,"def":206,"spa":238,"spd":190,"spe":198},"moves":["roost","substitute","outrage","icebeam"],"baseAbility":"teravolt","item":"leftovers","pokeball":"pokeball","ability":"teravolt"},{"ident":"p1: Hitmonchan","details":"Hitmonchan, L88, M","condition":"231/231","active":false,"stats":{"atk":235,"def":189,"spa":112,"spd":244,"spe":184},"moves":["bulkup","firepunch","icepunch","drainpunch"],"baseAbility":"ironfist","item":"lifeorb","pokeball":"pokeball","ability":"ironfist"}]}}
+
+sideupdate
+p2
+|request|{"active":[{"moves":[{"move":"Wild Charge","id":"wildcharge","pp":24,"maxpp":24,"target":"normal","disabled":false},{"move":"Sucker Punch","id":"suckerpunch","pp":8,"maxpp":8,"target":"normal","disabled":false},{"move":"Superpower","id":"superpower","pp":8,"maxpp":8,"target":"normal","disabled":false},{"move":"Fire Blast","id":"fireblast","pp":8,"maxpp":8,"target":"normal","disabled":false}]}],"side":{"name":"Lars","id":"p2","pokemon":[{"ident":"p2: Emboar","details":"Emboar, L85, M","condition":"326/326","active":true,"stats":{"atk":258,"def":159,"spa":219,"spd":159,"spe":159},"moves":["wildcharge","suckerpunch","superpower","fireblast"],"baseAbility":"reckless","item":"assaultvest","pokeball":"pokeball","ability":"reckless"},{"ident":"p2: Forretress","details":"Forretress, L84, F","condition":"263/263","active":false,"stats":{"atk":199,"def":283,"spa":149,"spd":149,"spe":72},"moves":["gyroball","spikes","toxic","voltswitch"],"baseAbility":"sturdy","item":"leftovers","pokeball":"pokeball","ability":"sturdy"},{"ident":"p2: Lurantis","details":"Lurantis, L88, F","condition":"266/266","active":false,"stats":{"atk":235,"def":209,"spa":191,"spd":209,"spe":129},"moves":["leafstorm","superpower","hiddenpowerice60","knockoff"],"baseAbility":"contrary","item":"assaultvest","pokeball":"pokeball","ability":"contrary"},{"ident":"p2: Starmie","details":"Starmie, L82","condition":"233/233","active":false,"stats":{"atk":128,"def":187,"spa":211,"spd":187,"spe":236},"moves":["psyshock","thunderbolt","recover","hydropump"],"baseAbility":"analytic","item":"lifeorb","pokeball":"pokeball","ability":"analytic"},{"ident":"p2: Tapu Koko","details":"Tapu Koko, L80","condition":"243/243","active":false,"stats":{"atk":189,"def":182,"spa":198,"spd":166,"spe":254},"moves":["naturesmadness","defog","dazzlinggleam","thunderbolt"],"baseAbility":"electricsurge","item":"electriumz","pokeball":"pokeball","ability":"electricsurge"},{"ident":"p2: Electrode","details":"Electrode, L89","condition":"252/252","active":false,"stats":{"atk":140,"def":175,"spa":193,"spd":193,"spe":318},"moves":["thunderbolt","taunt","voltswitch","foulplay"],"baseAbility":"static","item":"leftovers","pokeball":"pokeball","ability":"static"}]}}
+
+update
+|player|p2|Lars||
+|teamsize|p1|6
+|teamsize|p2|6
+|gametype|singles
+|gen|7
+|tier|[Gen 7] Random Battle
+|rule|Sleep Clause Mod: Limit one foe put to sleep
+|rule|HP Percentage Mod: HP is shown in percentages
+|
+|start
+|split|p1
+|switch|p1a: Deoxys|Deoxys, L78|206/206
+|switch|p1a: Deoxys|Deoxys, L78|100/100
+|split|p2
+|switch|p2a: Emboar|Emboar, L85, M|326/326
+|switch|p2a: Emboar|Emboar, L85, M|100/100
+|-ability|p1a: Deoxys|Pressure
+|turn|1
+
+
