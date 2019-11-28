@@ -1,0 +1,28 @@
+sideupdate
+p1
+|request|{"active":[{"moves":[{"move":"Ice Beam","id":"icebeam","pp":16,"maxpp":16,"target":"normal","disabled":false},{"move":"Protect","id":"protect","pp":16,"maxpp":16,"target":"self","disabled":false},{"move":"Encore","id":"encore","pp":8,"maxpp":8,"target":"normal","disabled":false},{"move":"Surf","id":"surf","pp":24,"maxpp":24,"target":"allAdjacent","disabled":false}]}],"side":{"name":"Scott","id":"p1","pokemon":[{"ident":"p1: Dewgong","details":"Dewgong, L89, M","condition":"305/305","active":true,"stats":{"atk":129,"def":193,"spa":175,"spd":220,"spe":175},"moves":["icebeam","protect","encore","surf"],"baseAbility":"thickfat","item":"leftovers","pokeball":"pokeball","ability":"thickfat"},{"ident":"p1: Garbodor","details":"Garbodor, L86, M","condition":"278/278","active":false,"stats":{"atk":213,"def":190,"spa":152,"spd":190,"spe":178},"moves":["haze","toxic","toxicspikes","gunkshot"],"baseAbility":"aftermath","item":"blacksludge","pokeball":"pokeball","ability":"aftermath"},{"ident":"p1: Charizard","details":"Charizard, L80, M","condition":"255/255","active":false,"stats":{"atk":181,"def":171,"spa":221,"spd":182,"spe":206},"moves":["flareblitz","dragonclaw","dragondance","earthquake"],"baseAbility":"blaze","item":"charizarditex","pokeball":"pokeball","ability":"blaze"},{"ident":"p1: Hydreigon","details":"Hydreigon, L82, F","condition":"285/285","active":false,"stats":{"atk":219,"def":195,"spa":252,"spd":195,"spe":208},"moves":["darkpulse","roost","uturn","dragonpulse"],"baseAbility":"levitate","item":"leftovers","pokeball":"pokeball","ability":"levitate"},{"ident":"p1: Ferrothorn","details":"Ferrothorn, L80, F","condition":"250/250","active":false,"stats":{"atk":197,"def":256,"spa":133,"spd":232,"spe":78},"moves":["powerwhip","leechseed","spikes","stealthrock"],"baseAbility":"ironbarbs","item":"leftovers","pokeball":"pokeball","ability":"ironbarbs"},{"ident":"p1: Victreebel","details":"Victreebel, L88, M","condition":"284/284","active":false,"stats":{"atk":235,"def":165,"spa":226,"spd":173,"spe":173},"moves":["powerwhip","sleeppowder","sludgebomb","suckerpunch"],"baseAbility":"chlorophyll","item":"lifeorb","pokeball":"pokeball","ability":"chlorophyll"}]}}
+
+sideupdate
+p2
+|request|{"active":[{"moves":[{"move":"Seed Bomb","id":"seedbomb","pp":24,"maxpp":24,"target":"normal","disabled":false},{"move":"Knock Off","id":"knockoff","pp":32,"maxpp":32,"target":"normal","disabled":false},{"move":"Return 102","id":"return","pp":32,"maxpp":32,"target":"normal","disabled":false},{"move":"U-turn","id":"uturn","pp":32,"maxpp":32,"target":"normal","disabled":false}]}],"side":{"name":"Lars","id":"p2","pokemon":[{"ident":"p2: Ambipom","details":"Ambipom, L86, M","condition":"269/269","active":true,"stats":{"atk":221,"def":163,"spa":152,"spd":163,"spe":247},"moves":["seedbomb","knockoff","return102","uturn"],"baseAbility":"pickup","item":"choiceband","pokeball":"pokeball","ability":"pickup"},{"ident":"p2: Jirachi","details":"Jirachi, L80","condition":"291/291","active":false,"stats":{"atk":206,"def":206,"spa":206,"spd":206,"spe":206},"moves":["bodyslam","stealthrock","ironhead","wish"],"baseAbility":"serenegrace","item":"leftovers","pokeball":"pokeball","ability":"serenegrace"},{"ident":"p2: Flygon","details":"Flygon, L84, F","condition":"272/272","active":false,"stats":{"atk":216,"def":183,"spa":183,"spd":183,"spe":216},"moves":["dragondance","roost","earthquake","outrage"],"baseAbility":"levitate","item":"lumberry","pokeball":"pokeball","ability":"levitate"},{"ident":"p2: Heracross","details":"Heracross, L81, M","condition":"262/262","active":false,"stats":{"atk":249,"def":168,"spa":111,"spd":201,"spe":184},"moves":["closecombat","swordsdance","rockblast","pinmissile"],"baseAbility":"guts","item":"heracronite","pokeball":"pokeball","ability":"guts"},{"ident":"p2: Musharna","details":"Musharna, L88, M","condition":"347/347","active":false,"stats":{"atk":101,"def":200,"spa":239,"spd":217,"spe":101},"moves":["moonlight","calmmind","psyshock","signalbeam"],"baseAbility":"synchronize","item":"leftovers","pokeball":"pokeball","ability":"synchronize"},{"ident":"p2: Castform","details":"Castform, M","condition":"302/302","active":false,"stats":{"atk":145,"def":197,"spa":197,"spd":197,"spe":197},"moves":["thunder","hurricane","raindance","hydropump"],"baseAbility":"forecast","item":"wateriumz","pokeball":"pokeball","ability":"forecast"}]}}
+
+update
+|player|p1|Scott||
+|player|p2|Lars||
+|teamsize|p1|6
+|teamsize|p2|6
+|gametype|singles
+|gen|7
+|tier|[Gen 7] Random Battle
+|rule|Sleep Clause Mod: Limit one foe put to sleep
+|rule|HP Percentage Mod: HP is shown in percentages
+|
+|start
+|split|p1
+|switch|p1a: Dewgong|Dewgong, L89, M|305/305
+|switch|p1a: Dewgong|Dewgong, L89, M|100/100
+|split|p2
+|switch|p2a: Ambipom|Ambipom, L86, M|269/269
+|switch|p2a: Ambipom|Ambipom, L86, M|100/100
+|turn|1
+
