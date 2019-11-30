@@ -44,9 +44,12 @@ def receive_simulator_message():
         if (message == '\n'):
             break
         # last two characters are '\n' so ignore them
-        messages.append(message[:-1].split("|"))
+        messages.append(message)#[:-1].) #split("|"))
+
+        sys.stderr.write(message)
+
     # first string will be empty as message starts with |
-    return messages[1:] 
+    return messages
 
 
 
@@ -59,8 +62,8 @@ simulator = subprocess.Popen('./pokemon-showdown simulate-battle',
 
 
 # start game 
-# (different as you need to read exactly 3 messages by simulator)
-simulator.stdin.write('>start {"formatid":"gen7randombattle"}\n')
+# (special as you need to read exactly 3 messages by simulator)
+simulator.stdin.write('>start {"formatid":"gen1randombattle"}\n')
 simulator.stdin.write('>player p1 {"name":"Scott"}\n')
 simulator.stdin.write('>player p2 {"name":"Lars"}\n')
 simulator.stdin.flush()	
@@ -76,10 +79,9 @@ for _ in range(START_MESSAGES):
 
     game.append(new_message)
 
-for s in game:
-    for sub in s:
-        print('\t' + str(sub))
-    print()
+# for s in game:
+#     for sub in s:
+#         print('\t' + str(sub))
 
 # NEXT: splitting doesn't work yet (i'm remvoing some info). not always just | but is both \n and |
 
