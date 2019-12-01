@@ -64,14 +64,28 @@ def parse_simulator_message(raw):
     # handle all messages in sequence
     split_active = 'no' # if active, is set to either 'p1' or 'p2'
 
-    for s_ in raw:
-        s = s_.split('\n')[0].split('|')[1:]
+    for j, s__ in enumerate(raw):
+
+        s_ = s__.split('\n')[0]
+        s = s_.split('|')[1:]
+       
+        if s[0] == 'win':
+            # we have a winner
+            message = MESSAGE['win']
+            # next to next line is json of game info
+            _ = simulator.stdout.readline()
+            line = simulator.stdout.readline()
+            message.value['info_json'] = json.loads(line.split('\n')[0])
+            print(message.value['info_json'])
+            obj = SimulatorMessage(type, adressed_players_ind, message, original_str=s_)
+            message_objects.append(obj)
+            break
 
         # first part of message is id (remove all special characters like `-`)
         id = s.pop(0) 
         id = id if id != '' else 'empty' 
         # convert '-minoraction' to 'minor_minoraction'
-        id = 'minor_' + id if id[0] == '-' else id
+        id = 'minor_' + id[1:] if id[0] == '-' else id
         if id not in SIMULATOR_MESSAGE_IDS:
             raise ValueError('Unknown simulator message ID \'' + id + '\'')
         
@@ -95,6 +109,9 @@ def parse_simulator_message(raw):
             message_fields = list(message.value.keys())
             message_fields.pop(0) 
             if (len(message_fields) < len(s)):
+                print(message)
+                print(s_)
+                print(s)
                 raise ValueError(
                     'Message by simulator and corresponding '
                     'MESSAGE object dont have the same number of fields '
@@ -102,14 +119,19 @@ def parse_simulator_message(raw):
 
             # fill message object in order
             for i, field in enumerate(message_fields):
-                message.value[field] = s[i]
+                if i <= len(s) - 1:
+                    message.value[field] = s[i]
+                else:
+                    # not all information provided stream message so don't fill dict
+                    break
+                    
 
         # regular case: just record the current message
         if not id == 'split':
 
             # create SimulatorMessage
             adressed_players_ind = adressed_players if split_active == 'no' else split_active
-            obj = SimulatorMessage(type, adressed_players_ind, message)
+            obj = SimulatorMessage(type, adressed_players_ind, message, original_str=s_)
             message_objects.append(obj)
 
             # reset split flag (in case it was on)
@@ -139,7 +161,7 @@ def receive_simulator_message():
     messages = parse_simulator_message(raw_message)
     return messages
 
-def filter_messages(player, messages):
+def filter_messages_by_player(player, messages):
     '''
     Filters messages that are only truly addressed to `player`
     '''
@@ -149,14 +171,39 @@ def filter_messages(player, messages):
             player_messages.append(m)
     return player_messages
 
+def filter_messages_by_id(id, messages):
+    '''
+    Filters messages that  have a certain id, e.g `faint`
+    '''
+    id_messages = []
+    for m in messages:
+        if m.message.name == id:
+            id_messages.append(m)
+    return id_messages
+
+def retrieve_message_ids(messages):
+    '''
+    Returns list of all message ids in list of SimulatorMessages
+    '''
+    ids = set()
+    for m in messages:
+        ids.add(m.message.name )
+    return list(ids)
+
 def get_player_request(player, messages):
     '''
     Searches through list of MESSAGEs and returns request for player (p1 or p2)
+    Returns [] if no request for player
     '''
+    requests = []
     for m in messages:
         if m.adressed_players == player and m.message.value['id'] == 'request':
-            return m.message.value
-    raise ValueError('No request for player found in list of messages.')
+            requests.append(m.message.value)
+    assert(len(requests) <= 1)
+    if requests == []:
+        return []
+    else:
+        return requests[0]
 
 
 def send_choice_to_simulator(player_action):
@@ -218,72 +265,97 @@ simulator = subprocess.Popen('./pokemon-showdown simulate-battle',
 
 
 # start game 
-# (special as you need to read exactly 3 messages by simulator)
 simulator.stdin.write('>start {"formatid":"gen1randombattle"}\n')
 simulator.stdin.write('>player p1 {"name":"' + player1.name +'"}\n')
 simulator.stdin.write('>player p2 {"name":"' + player2.name +'"}\n')
 simulator.stdin.flush()	
-START_MESSAGES = 3
+MESSAGES_TURN = 3
 
 game = []
-for _ in range(START_MESSAGES):
-    new_messages = receive_simulator_message()
-    game += new_messages
-
-player1.receive_game_update(filter_messages('p1', game))
-player2.receive_game_update(filter_messages('p2', game))
-
-
-for m in game:
-    print(m)
-
 
 # game flow
+turn = 0
 game_ended = False
 last_messages = game
 while not game_ended:
 
-    print('Waiting for player choices ...')
-    # every player makes a choice
-    request_p1 = get_player_request('p1', last_messages)
-    request_p2 = get_player_request('p2', last_messages)
+    '''
+    Standard turn consists of 3 simulator messages
+    - sideupdate p1 with request for p1
+    - sideupdate p2 with request for p2
+    - update about what happened last round
 
-    # print('Player 1 request:')
-    # print(request_p1)
-    # print('Player 2 request:')
-    # print(request_p2)
+    Then, both p1 and p2 have to make a choice for next round
 
-    action_p1 = player1.process_request(request_p1)
-    action_p2 = player2.process_request(request_p2)
+    If in the update we find out a pokemon fainted of p1 or p2,
+    then the corresponding player has to make a second choice that turn (namely a switch)
 
-    print(action_p1)
-    print(action_p2)
+    '''
 
-    send_choice_to_simulator(action_p1)
-    send_choice_to_simulator(action_p2)
+    turn += 1
+    # print(f'TURN  {turn}')
 
+    # receive simulation updates and inform players
+    last_messages = []
+    for _ in range(MESSAGES_TURN):
+        last_messages += receive_simulator_message()
 
+        # check if game is over
+        if 'win' in retrieve_message_ids(last_messages):
+            print("GAME OVER")
+            game_ended = True
+            break
 
-    print('Player choices sent.')
+    if game_ended:
+        break
 
+    player1.receive_game_update(filter_messages_by_player('p1', last_messages))
+    player2.receive_game_update(filter_messages_by_player('p2', last_messages))
+    game += last_messages
+    message_ids = retrieve_message_ids(last_messages)
 
-    # receive simulation results and inform players
-    last_messages = receive_simulator_message()
-    player1.receive_game_update(filter_messages('p1', last_messages))
-    player2.receive_game_update(filter_messages('p2', last_messages))
-    game.append(last_messages)
+    # if messages contain turn, turn with a choice each player
+    if 'turn' in message_ids: 
+        request_p1 = get_player_request('p1', last_messages)
+        request_p2 = get_player_request('p2', last_messages)
 
+        action_p1 = player1.process_request(request_p1)
+        action_p2 = player2.process_request(request_p2)
 
-    for m in last_messages:
-        print(m)
+        send_choice_to_simulator(action_p1)
+        send_choice_to_simulator(action_p2)
 
-    break
-    
+    # if message contains faint, request a single choice by the player with fainted pokemon 
+    elif 'faint' in message_ids:
+        faint_message = filter_messages_by_id('faint', last_messages)
+        faint_message = faint_message[0] # sometimes faint gets sent twice (I think due to |split but not sure)
+
+        # first two characters of fainted pokemon describe the player
+        fainted_player_id = faint_message.message.value['pokemon'][0:2]
+        # print('PLAYER >' + fainted_player_id + '< has a fainted pokemon, so need to make a forced switch.')
+
+        faint_request = get_player_request(fainted_player_id, last_messages)
+        if fainted_player_id == 'p1':
+            faint_action = player1.process_request(faint_request)
+        else:
+            faint_action = player2.process_request(faint_request)
+
+        send_choice_to_simulator(faint_action)
+
+    # else not sure what situation we are in
+    else:
+        raise ValueError('Unknown game situation given MessageIDs: \n' + str(message_ids))
+
 
 
 # terminate game
 simulator.terminate()
 simulator.stdin.close()
 
+'''
 
+TODO there are some instances where we get stuck in an infinite loop . 
+I think this is a special game situation that is not treated yet. 
+Inspect the message ids 
 
+'''
