@@ -3,7 +3,6 @@ import time
 import sys
 import subprocess
 import json
-from enum import Enum
 
 # import custom structures (like MESSAGE, ACTION)
 from custom_structures import *
@@ -29,7 +28,7 @@ class DefaultAgent:
         '''
         Receives request sent by `pokemon-showdown simulate-game` and returns a PlayerAction
         '''
-        
-        choice = ACTION['default']
+
+        choice = copy.deepcopy(ACTION['default'])
 
         return PlayerAction(self.id, choice)
