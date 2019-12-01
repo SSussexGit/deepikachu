@@ -34,7 +34,6 @@ sys.stdin.readline():
 
 
 '''
-assert('ss' == 'add minor_ because there are double assignments')
 
 PLAYER_IDS = ['p1', 'p2']
 SIMULATOR_MESSAGE_TYPES = ['update', 'sideupdate', 'end']
@@ -89,7 +88,7 @@ class MESSAGE(Enum):
     
     minor_fail =                dict(id='minor_fail', pokemon=None, action=None)
     minor_block =               dict(id='minor_block', pokemon=None, effect=None, move=None, attacker=None)
-    minor_notarget =            dict(id='minor_notarget', prototype=pokemon)
+    minor_notarget =            dict(id='minor_notarget', pokemon=None)
     minor_miss =                dict(id='minor_miss', source=None, target=None)
     minor_damage =              dict(id='minor_damage', pokemon=None, hp=None)
     minor_heal =                dict(id='minor_heal', pokemon=None, hp=None)
@@ -142,8 +141,6 @@ class MESSAGE(Enum):
     minor_singleturn =          dict(id='minor_singleturn', pokemon=None, move=None)
 
 
-
-# ''.join(e for e in string if e.isalnum())
 
 # list of all ids defined in MESSAGE enum
 SIMULATOR_MESSAGE_IDS =  [m.value['id'] if not m.name == 'empty' else 'empty' for m in MESSAGE]
@@ -200,7 +197,8 @@ def parse_simulator_message(raw):
         # first part of message is id (remove all special characters like `-`)
         id = s.pop(0) 
         id = id if id != '' else 'empty' 
-        id = ''.join(ch for ch in id if ch.isalnum())
+        # convert '-minoraction' to 'minor_minoraction'
+        id = 'minor_' + id if id[0] == '-' else id
         if id not in SIMULATOR_MESSAGE_IDS:
             raise ValueError('Unknown simulator message ID \'' + id + '\'')
         
