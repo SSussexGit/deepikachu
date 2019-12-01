@@ -4,6 +4,7 @@ import sys
 import subprocess
 import json
 from enum import Enum
+import pprint
 
 # import custom structures (like MESSAGE, ACTION) and all agents
 from custom_structures import *
@@ -76,7 +77,6 @@ def parse_simulator_message(raw):
             _ = simulator.stdout.readline()
             line = simulator.stdout.readline()
             message.value['info_json'] = json.loads(line.split('\n')[0])
-            print(message.value['info_json'])
             obj = SimulatorMessage(type, adressed_players_ind, message, original_str=s_)
             message_objects.append(obj)
             break
@@ -306,12 +306,12 @@ while not game_ended:
             game_ended = True
             break
 
+    game += last_messages
     if game_ended:
         break
 
     player1.receive_game_update(filter_messages_by_player('p1', last_messages))
     player2.receive_game_update(filter_messages_by_player('p2', last_messages))
-    game += last_messages
     message_ids = retrieve_message_ids(last_messages)
 
     # if messages contain turn, turn with a choice each player
@@ -347,6 +347,10 @@ while not game_ended:
         raise ValueError('Unknown game situation given MessageIDs: \n' + str(message_ids))
 
 
+# print results
+game_over_message = filter_messages_by_id('win', game)[0]
+# pprint.pprint(game_over_message.message.value['info_json'])
+print(game_over_message.message.value['info_json'])
 
 # terminate game
 simulator.terminate()
