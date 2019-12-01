@@ -111,3 +111,73 @@ class MESSAGE(Enum):
 
 # list of all ids defined in MESSAGE enum
 SIMULATOR_MESSAGE_IDS =  [m.value['id'] if not m.name == 'empty' else 'empty' for m in MESSAGE]
+
+
+
+class ACTION(Enum):
+	'''
+	This enum represents and defines all game choices for players(i.e. actions)
+	Doc: https://github.com/smogon/pokemon-showdown/blob/master/sim/SIM-PROTOCOL.md
+
+	'''
+
+	'''TEAMSPEC is list of pokemon slots e.g. team 213456 '''
+	team =         		dict(teamspec=None)
+
+	'''To auto-choose a decision. This will be the first possible legal choice'''
+	default =        	dict()
+
+	'''To cancel a previously-made choice. This can only be done if the another player needs to make a choice and hasn't done so'''
+	undo =         		dict()
+
+	'''A regular game choice. 
+	MOVESPEC is a move name or 1-based move slot number
+	SWITCHSPEC is a Pokémon nickname/species or 1-based slot number
+	'''
+	move =  			dict(movespec=None)
+	move_mega =  		dict(movespec=None)
+	move_zmove =  		dict(movespec=None)
+	switch =  			dict(movespec=None)
+
+
+
+
+class SimulatorMessage:
+    '''
+    Class that represents one full message by the simulator 
+    '''
+    def __init__(self, type, adressed_players, message):
+        # (string from SIMULATOR_MESSAGE_TYPES)
+        self.type = type
+
+        # list of (string from PLAYERS)
+        self.adressed_players = adressed_players
+
+        # (dict from MESSAGE)
+        self.message = message
+
+    def __str__(self):
+        # for printing
+        s = (f'SimulatorMessage [{self.type}] to:   {str(self.adressed_players)} \n' + 
+            f' | ID: {self.message.name}  | {self.message.value}')
+        return s
+
+
+class PlayerAction:
+    '''
+    Class that represents an action by a player
+    '''
+    def __init__(self, player, action):
+        # `p1` or `p2`
+        self.player = player
+
+        # (dict from ACTION)
+        self.action = action
+
+    def __str__(self):
+        # for printing
+        s = (f'PlayerAction [' + self.player + ']\n' + 
+            f' | ID: {self.action.name}  | {self.action.value}')
+        return s
+
+

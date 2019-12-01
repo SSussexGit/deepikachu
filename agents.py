@@ -8,12 +8,14 @@ from enum import Enum
 # import custom structures (like MESSAGE, ACTION)
 from custom_structures import *
 
-class Agent:
+class DefaultAgent:
     '''
-    Class implementing a random-playing agent interacting with game-coordinator.py
+    Class implementing a default-playing agent interacting with game-coordinator.py
+    id is either 'p1' or 'p2'
     '''
-    def __init__(self):
-        
+    def __init__(self, id, name='Ash'):
+        self.id = id
+        self.name = name
         self.history = []
 
     def receive_game_update(self, messages):
@@ -25,5 +27,9 @@ class Agent:
 
     def process_request(self, request):
         '''
-        Receives request sent by `pokemon-showdown simulate-game` and returns an ACTION
+        Receives request sent by `pokemon-showdown simulate-game` and returns a PlayerAction
         '''
+        
+        choice = ACTION['default']
+
+        return PlayerAction(self.id, choice)

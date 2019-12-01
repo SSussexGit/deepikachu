@@ -5,9 +5,9 @@ import subprocess
 import json
 from enum import Enum
 
-# import custom structures (like MESSAGE, ACTION)
+# import custom structures (like MESSAGE, ACTION) and all agents
 from custom_structures import *
-from agent_random import Agent
+from agents import *
 
 
 ''' 
@@ -37,27 +37,6 @@ sys.stdin.readline():
 
 
 '''
-
-
-class SimulatorMessage:
-    '''
-    Class that represents one full message by the simulator 
-    '''
-    def __init__(self, type, adressed_players, message):
-        # (string from SIMULATOR_MESSAGE_TYPES)
-        self.type = type
-
-        # list of (string from PLAYERS)
-        self.adressed_players = adressed_players
-
-        # (dict from MESSAGE)
-        self.message = message
-
-    def __str__(self):
-        # for printing
-        s = (f'SimulatorMessage [{self.type}] to:   {str(self.adressed_players)} \n' + 
-            f' | ID: {self.message.name}  | {self.message.value}')
-        return s
 
 
 def parse_simulator_message(raw):
@@ -180,12 +159,42 @@ def get_player_request(player, messages):
     raise ValueError('No request for player found in list of messages.')
 
 
-def send_choice_to_simulator(action):
+def send_choice_to_simulator(player_action):
     '''
-    Sends ACTION made by a player to the simulator
+    Sends PlayerAction made by a player to the simulator
     '''
+    player = player_action.player
+    action_name = player_action.action.name
+    action_dict = player_action.action.value
 
-    raise NotImplementedError
+    # this should produce string without \n defining the action after >p1 ..
+    if action_name == ACTION.team.name:
+        # team 
+        action_str = 'team ' + action_dict['teamspec']
+    elif action_name == ACTION.default.name:
+        # default
+        action_str = 'default'
+    elif action_name == ACTION.undo.name:
+        # undo
+        action_str = 'undo'
+    elif action_name == ACTION.move.name:
+        # move
+        action_str = 'move ' + action_dict['movespec']
+    elif action_name == ACTION.move_mega.name:
+        # move mega
+        action_str = 'move ' + action_dict['movespec'] + ' mega'
+    elif action_name == ACTION.move_zmove.name:
+        # move zmove
+        action_str = 'move ' + action_dict['movespec'] + ' zmove'
+    elif action_name == ACTION.switch.name:
+        # switch
+        action_str = 'switch ' + action_dict['switchspec']
+    else:
+        raise ValueError("Trying to send unspecified action to simulator")
+
+    out = '>' + player + ' ' + action_str + '\n'
+    simulator.stdin.write(out)
+    simulator.stdin.flush()	
 
 
 
@@ -194,9 +203,11 @@ def send_choice_to_simulator(action):
 START: Live code
 '''
 
+print('Starting game simulation with two players.')
+
 # initializes players
-player1 = Agent()
-player2 = Agent()
+player1 = DefaultAgent('p1', name='Scott')
+player2 = DefaultAgent('p2', name='Lars')
 
 # opens: pokemon-showdown simulate-battle
 simulator = subprocess.Popen('./pokemon-showdown simulate-battle', 
@@ -209,8 +220,8 @@ simulator = subprocess.Popen('./pokemon-showdown simulate-battle',
 # start game 
 # (special as you need to read exactly 3 messages by simulator)
 simulator.stdin.write('>start {"formatid":"gen1randombattle"}\n')
-simulator.stdin.write('>player p1 {"name":"Scott"}\n')
-simulator.stdin.write('>player p2 {"name":"Lars"}\n')
+simulator.stdin.write('>player p1 {"name":"' + player1.name +'"}\n')
+simulator.stdin.write('>player p2 {"name":"' + player2.name +'"}\n')
 simulator.stdin.flush()	
 START_MESSAGES = 3
 
@@ -223,7 +234,9 @@ player1.receive_game_update(filter_messages('p1', game))
 player2.receive_game_update(filter_messages('p2', game))
 
 
-print('Starting game simulation with two players.')
+for m in game:
+    print(m)
+
 
 # game flow
 game_ended = False
@@ -235,18 +248,24 @@ while not game_ended:
     request_p1 = get_player_request('p1', last_messages)
     request_p2 = get_player_request('p2', last_messages)
 
-    print('Player 1 request:')
-    print(request_p1)
-    print('Player 2 request:')
-    print(request_p2)
+    # print('Player 1 request:')
+    # print(request_p1)
+    # print('Player 2 request:')
+    # print(request_p2)
 
-    choice_p1 = player1.process_request(request_p1)
-    choice_p2 = player2.process_request(request_p2)
+    action_p1 = player1.process_request(request_p1)
+    action_p2 = player2.process_request(request_p2)
+
+    print(action_p1)
+    print(action_p2)
+
+    send_choice_to_simulator(action_p1)
+    send_choice_to_simulator(action_p2)
+
 
 
     print('Player choices sent.')
 
-    break
 
     # receive simulation results and inform players
     last_messages = receive_simulator_message()
@@ -254,6 +273,11 @@ while not game_ended:
     player2.receive_game_update(filter_messages('p2', last_messages))
     game.append(last_messages)
 
+
+    for m in last_messages:
+        print(m)
+
+    break
     
 
 
