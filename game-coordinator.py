@@ -65,7 +65,7 @@ class MESSAGE(Enum):
 
     # Battle progress
     empty =         dict(id=''), # empty line, i.e. '|'
-    request =       dict(id='request', request_json=None)
+    request =       dict(id='request', request_dict=None)
     inactive =      dict(id='inactive', message=None)
     inactiveoff =   dict(id='inactiveoff', message=None)
     upkeep =        dict(id='upkeep')
@@ -79,6 +79,12 @@ class MESSAGE(Enum):
     drag =          dict(id='drag', pokemon=None, details=None, hp=None)
     detailschange = dict(id='detailschange', pokemon=None, details=None, hp=None)
     formechange =   dict(id='formechange', pokemon=None, species=None, hp=None)
+    replace =       dict(id='replace', pokemon=None, details=None, hp=None)
+    swap =          dict(id='swap', pokemon=None, position=None)
+    cant =          dict(id='cant', pokemon=None, reason=None, move=None)
+    faint =         dict(id='faint', pokemon=None)
+
+
 
 
 # ''.join(e for e in string if e.isalnum())
@@ -90,15 +96,21 @@ class SimulatorMessage:
     '''
     Class that represents one full message by the simulator 
     '''
-    def __init__(self, type, adressed_players, messages):
+    def __init__(self, type, adressed_players, message):
         # (string from SIMULATOR_MESSAGE_TYPES)
         self.type = type
 
         # list of (string from PLAYERS)
         self.adressed_players = adressed_players
 
-        # list of (dict from MESSAGE)
-        self.messages = messages
+        # (dict from MESSAGE)
+        self.message = message
+
+    def __str__(self):
+        # for printing
+        s = (f'SimulatorMessage [{self.type}] to:   {str(self.adressed_players)} \n' + 
+            f' | ID: {self.message.name}  | {self.message.value}')
+        return s
 
 
 def parse_simulator_message(raw):
@@ -109,8 +121,6 @@ def parse_simulator_message(raw):
     '''
     
     message_objects = []
-
-    print('START MESSAGE')
 
     # type
     type = raw.pop(0).split('\n')[0]
@@ -145,10 +155,9 @@ def parse_simulator_message(raw):
 
         # process special messages
         if id == 'request':
+            request_dict = json.loads(s[0])
+            message.value['request_dict'] = request_dict
             
-            print(len(s))
-            # TODO json read in
-            pass
         elif id == 'empty':
 
             pass
@@ -158,17 +167,15 @@ def parse_simulator_message(raw):
             # first field of MESSAGE is always 'id' and doesn't need to be filled
             message_fields = list(message.value.keys())
             message_fields.pop(0) 
-            if (len(message_fields) != len(s)):
+            if (len(message_fields) < len(s)):
                 raise ValueError(
                     'Message by simulator and corresponding '
-                    'MESSAGE object dont have the same number of fields')
+                    'MESSAGE object dont have the same number of fields '
+                    '(not enough fields to be filled in Message)')
 
             # fill message object in order
             for i, field in enumerate(message_fields):
                 message.value[field] = s[i]
-
-
-        print('Message: ' + repr(message))
 
         # regular case: just record the current message
         if not id == 'split':
@@ -176,12 +183,10 @@ def parse_simulator_message(raw):
             # create SimulatorMessage
             adressed_players_ind = adressed_players if split_active == 'no' else split_active
             obj = SimulatorMessage(type, adressed_players_ind, message)
-            message_objects.append(message)
+            message_objects.append(obj)
 
             # reset split flag (in case it was on)
             split_active = 'no'
-
-            print('created message for player: ' + str(adressed_players_ind))
 
         # don't record `split` messages per se as they only indicate the next recipient
         if id == 'split':
@@ -191,11 +196,8 @@ def parse_simulator_message(raw):
             # next message is only visible to the specifically indicated player by split 
             split_active = message.value['player']
 
-        
-    print('END MESSAGE')
-    print()
-
-
+    for m in message_objects:
+        print(m)
     return message_objects
 
 def receive_simulator_message():
