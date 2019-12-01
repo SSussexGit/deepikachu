@@ -2,6 +2,7 @@
 import time
 import sys
 import subprocess
+import json
 from enum import Enum
 
 
@@ -34,39 +35,8 @@ sys.stdin.readline():
 
 '''
 
-PLAYERS = ['p1', 'p2']
+PLAYER_IDS = ['p1', 'p2']
 SIMULATOR_MESSAGE_TYPES = ['update', 'sideupdate', 'end']
-# SIMULATOR_MESSAGES__ = [
-#     # Doc: https://github.com/smogon/pokemon-showdown/blob/master/sim/SIM-PROTOCOL.md
-#     # This list is intended to document the message prototype 
-    
-#     # Battle initialization
-#     dict(id='split', request_json=None),
-#     dict(id='player', player=None, username=None, avatar=None, rating=None),
-#     dict(id='teamsize', player=None, number=None),
-#     dict(id='gametype', gametype='singles'),
-#     dict(id='gen', gennum=None),
-#     dict(id='tier', formatname=None),
-#     dict(id='rule', rule=None),
-#     dict(id='rated', message=None),
-#     dict(id='clearpoke'),
-#     dict(id='start'),
-#     dict(id='poke', player=None, details=None, item=None),
-
-#     # Battle progress
-#     dict(id=''), # empty line, i.e. '|'
-#     dict(id='request', request_json=None),
-#     dict(id='inactive', message=None),
-#     dict(id='inactiveoff', message=None),
-#     dict(id='upkeep'),
-#     dict(id='turn', number=None),
-#     dict(id='win', user=None),
-#     dict(id='tie'),
-
-#     # Major actions
-#     dict(id='switch', request_json=None),
-# ]
-# SIMULATOR_MESSAGE_IDS = [d['id'] for d in SIMULATOR_MESSAGES__]
 
 class MESSAGE(Enum):
     '''
@@ -81,10 +51,10 @@ class MESSAGE(Enum):
     '''
 
     # battle initialization
-    split =         dict(id='split')
+    split =         dict(id='split', player=None)
     player =        dict(id='player', player=None, username=None, avatar=None, rating=None)
     teamsize =      dict(id='teamsize', player=None, number=None)
-    gametype =      dict(id='gametype', gametype='singles')
+    gametype =      dict(id='gametype', gametype=None)
     gen =           dict(id='gen', gennum=None)
     tier =          dict(id='tier', formatname=None)
     rule =          dict(id='rule', rule=None)
@@ -104,7 +74,14 @@ class MESSAGE(Enum):
     tie =           dict(id='tie')
 
     # Major actions
-    switch =        dict(id='switch', request_json=None)
+    move =          dict(id='move', pokemon=None, move=None, target=None)
+    switch =        dict(id='switch', pokemon=None, details=None, hp=None)
+    drag =          dict(id='drag', pokemon=None, details=None, hp=None)
+    detailschange = dict(id='detailschange', pokemon=None, details=None, hp=None)
+    formechange =   dict(id='formechange', pokemon=None, species=None, hp=None)
+
+
+# ''.join(e for e in string if e.isalnum())
 
 # list of all ids defined in MESSAGE enum
 SIMULATOR_MESSAGE_IDS =  [m.value['id'] if not m.name == 'empty' else 'empty' for m in MESSAGE]
@@ -148,67 +125,78 @@ def parse_simulator_message(raw):
     else:
         adressed_players = ['p1', 'p2']
 
-    # handle all messages
-    # print('ADRESSED PLAYERS: ', adressed_players)
+    # handle all messages in sequence
+    split_active = 'no' # if active, is set to either 'p1' or 'p2'
+
     for s_ in raw:
         s = s_.split('\n')[0].split('|')[1:]
 
-        # first part of message is id
+        # first part of message is id (remove all special characters like `-`)
         id = s.pop(0) 
         id = id if id != '' else 'empty' 
+        id = ''.join(ch for ch in id if ch.isalnum())
         if id not in SIMULATOR_MESSAGE_IDS:
             raise ValueError('Unknown simulator message ID \'' + id + '\'')
         
         # get corresponding MESSAGE and fill values 
-        # (important that order in MESSAGE is the correct)
+        # (important that field order in MESSAGE is the correct)
         message = MESSAGE[id]
 
-       
 
-        # special messages
+        # process special messages
         if id == 'request':
             
+            print(len(s))
             # TODO json read in
             pass
         elif id == 'empty':
 
             pass
             
-        elif id == 'split':
-
-            # next two messages have different adressed_players
-            # TODO
-
-            pass
-
-        elif id == 'switch':
-
-            pass
-
         else:
-            # all regular messages
-
+            # process all regular messages
+            # first field of MESSAGE is always 'id' and doesn't need to be filled
             message_fields = list(message.value.keys())
-            # first field is always 'id' and doesn't need to be filled
             message_fields.pop(0) 
             if (len(message_fields) != len(s)):
                 raise ValueError(
                     'Message by simulator and corresponding '
                     'MESSAGE object dont have the same number of fields')
-            
+
             # fill message object in order
             for i, field in enumerate(message_fields):
                 message.value[field] = s[i]
 
-        message_objects.append(message)
+
         print('Message: ' + repr(message))
 
-   
+        # regular case: just record the current message
+        if not id == 'split':
+
+            # create SimulatorMessage
+            adressed_players_ind = adressed_players if split_active == 'no' else split_active
+            obj = SimulatorMessage(type, adressed_players_ind, message)
+            message_objects.append(message)
+
+            # reset split flag (in case it was on)
+            split_active = 'no'
+
+            print('created message for player: ' + str(adressed_players_ind))
+
+        # don't record `split` messages per se as they only indicate the next recipient
+        if id == 'split':
+            if not split_active == 'no':
+                raise ValueError('split message flag should not '
+                                 'be active when split appears')
+            # next message is only visible to the specifically indicated player by split 
+            split_active = message.value['player']
+
+        
     print('END MESSAGE')
     print()
 
 
-    return raw
+    return message_objects
 
 def receive_simulator_message():
     '''
