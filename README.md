@@ -26,9 +26,8 @@ Defines structures reoccuring in simulations, such as messages by the simulator 
 
 
 
-========================================================================
 
-Documentation by: Pokémon Showdown
+Documentation: Pokémon Showdown
 ========================================================================
 
 Navigation: [Website][1] | **Server repository** | [Client repository][2] | [Dex repository][3]
