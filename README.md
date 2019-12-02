@@ -13,7 +13,7 @@ When executed, simulates a game using the two provided agents. If no agents prov
 
 Define agent types used as follows (if `-p1 agent` or `-p2 agent` not passed, `default` agent is used)
 
-*python game_coordinator.py -p1 default -p2 default*
+**\# python game_coordinator.py -p1 default -p2 default**
 
 ### agents.py
 
