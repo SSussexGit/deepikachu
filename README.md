@@ -1,4 +1,34 @@
-Pokémon Showdown
+
+
+
+
+
+DeePikachu
+========================================================================
+
+### game_coordinator.py
+
+Implements framework to simulate a game using ./pokemon-showdown simulate-battle using user defined agents.
+When executed, simulates a game using the two provided agents. If no agents provided, uses default players.
+
+Define agent types used as follows (if `-p1 agent` or `-p2 agent` not passed, `default` agent is used)
+
+*python game_coordinator.py -p1 default -p2 default*
+
+### agents.py
+
+Defines agent behavior.
+
+
+### custom_structures.py
+
+Defines structures reoccuring in simulations, such as messages by the simulator or actions by the agents.
+
+
+
+========================================================================
+
+Documentation by: Pokémon Showdown
 ========================================================================
 
 Navigation: [Website][1] | **Server repository** | [Client repository][2] | [Dex repository][3]

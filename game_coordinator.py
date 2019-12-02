@@ -232,19 +232,59 @@ def send_choice_to_simulator(player_action):
     simulator.stdin.write(out)
     simulator.stdin.flush()	
 
-t_start = time.time()
-SIMS = 50
-for t in range(SIMS):
+def create_agents_from_argv(args):
+    '''
+    Parses command line arguments and initializes players accordingly
+    '''
+    options = args[1:]
+
+    if not (len(options) == 0 or len(options) == 2 or len(options) == 4):
+        raise ValueError('Invalid number of arguments passed to game_coordinator.py.')
+
+    info1 = None
+    info2 = None
+    while options:
+        tmp = options.pop(0)
+        if tmp == '-p1':
+            info1 = options.pop(0)
+        elif tmp == '-p2':
+            info2 = options.pop(0)
+        else:
+            raise ValueError('Invalid argument passed to game_coordinator.py.')
+    
+    # use default if not provided
+    info1 = info1 if info1 else 'default'
+    info2 = info2 if info2 else 'default'
+
+    # p1
+    if info1 == 'default':
+        player1 = DefaultAgent('p1', name='Scott')
+    else:
+        raise ValueError('Agent type provided is not defined.')
+    
+    # p2
+    if info2 == 'default':
+        player2 = DefaultAgent('p2', name='Lars')
+    else:
+        raise ValueError('Agent type provided is not defined.')
+
+    print('Player 1:  ' + info1)
+    print('Player 2:  ' + info2)
+    return player1, player2
+
+if __name__ == '__main__':
 
     '''
     START: Live code
+    Simulates one game.
+
+    # python game_coordinator.py -p1 default -p2 default
+
+    If not provied, use default agent
     '''
 
-    print(f'Simulation {t}')
-
-    # initializes players
-    player1 = DefaultAgent('p1', name='Scott')
-    player2 = DefaultAgent('p2', name='Lars')
+    # parse arguments and initialize players
+    player1, player2 = create_agents_from_argv(sys.argv)
 
     # opens: pokemon-showdown simulate-battle
     simulator = subprocess.Popen('./pokemon-showdown simulate-battle', 
@@ -303,7 +343,7 @@ for t in range(SIMS):
         player2.receive_game_update(filter_messages_by_player('p2', last_messages))
         message_ids = retrieve_message_ids(last_messages)
 
-    
+
         # if message contains faint, request a single choice by the player with fainted pokemon 
         if 'faint' in message_ids:
             faint_messages = filter_messages_by_id('faint', last_messages)   
@@ -345,11 +385,8 @@ for t in range(SIMS):
     # print results
     game_over_message = filter_messages_by_id('win', game)[0]
     # pprint.pprint(game_over_message.message['info_json'])
-    # print(game_over_message.message['info_json'])
+    print(game_over_message.message['info_json'])
 
     # terminate game
     simulator.terminate()
     simulator.stdin.close()
-
-t_end = time.time()
-print('Ave. sim time: ' + str((t_end - t_start) / SIMS))
