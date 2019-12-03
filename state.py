@@ -102,5 +102,11 @@ state = {
 		'tormenttime' : 0,
 		'tormentopp' : False,
 		'tormentopptime' : 0,
+		'twoturnmove' : False,
+		'twoturnmovenum' : 0; #a move number for the move that is two turns long
+		'twoturnmoveopp' : False,
+		'twoturnmoveoppnum' : 0,
+		'confusion' : False,
+		'confusionopp' : False, 
 	},
 }
