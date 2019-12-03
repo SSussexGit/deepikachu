@@ -194,7 +194,6 @@ def get_player_request(player, messages):
             request = m.message
     return request
 
-
 def send_choice_to_simulator(player_action):
     '''
     Sends PlayerAction made by a player to the simulator
@@ -379,6 +378,7 @@ if __name__ == '__main__':
 
         # else not sure what situation we are in
         else:
+            # check if it was U-turn move 
             raise ValueError('Unknown game situation given MessageIDs: \n' + str(message_ids))
 
 

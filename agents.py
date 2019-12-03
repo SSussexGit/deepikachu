@@ -21,6 +21,8 @@ class DefaultAgent:
         '''
         Receives series of game updates and process them
         '''
+
+
         self.history += messages
 
 

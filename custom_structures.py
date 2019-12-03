@@ -135,7 +135,7 @@ ACTION = {
 	'move' :  		dict(id='move', movespec=None),
 	'move_mega' :  	dict(id='move_mega', movespec=None),
 	'move_zmove' :  dict(id='move_zmove', movespec=None),
-	'switch' :  	dict(id='switch', movespec=None),
+	'switch' :  	dict(id='switch', switchspec=None),
 }
 
 
