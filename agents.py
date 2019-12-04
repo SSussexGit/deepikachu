@@ -21,8 +21,6 @@ class DefaultAgent:
         '''
         Receives series of game updates and process them
         '''
-
-
         self.history += messages
 
 
@@ -34,3 +32,21 @@ class DefaultAgent:
         choice = copy.deepcopy(ACTION['default'])
 
         return PlayerAction(self.id, choice)
+
+class RandomAgent(DefaultAgent):
+    '''
+    Class implementing player choosing random (valid) moves
+    '''
+    def process_request(self, request):
+        '''
+        Receives request sent by `pokemon-showdown simulate-game` and returns a PlayerAction
+        '''
+
+        print('RANDOM AGENT')
+        exit(0)
+
+        choice = copy.deepcopy(ACTION['default'])
+
+        return PlayerAction(self.id, choice)
+
+
