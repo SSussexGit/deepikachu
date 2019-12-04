@@ -27,58 +27,60 @@ condition_token = None
 
 
 
-move_state = {
+default_move_state = {
 	'disabled': False,
 	'id': move_token,
 	'maxpp': 0,
 	'pp': 0,
-	'type' : move_type_token
+	'type' : move_type_token,
+	'disabled' : False #can only be disabled if pokemon is active
 }
 
-pokemon_state = {
+default_pokemon_state = {
 	'pokemon_id' : pokemon_token,
 	'type1' : type_token,
 	'type2' : type_token,
 	'active': False, 
 	'baseAbility': ability_token,
 	'condition': condition_token,
+	'hp': 0, 
 	'level': 0,
 	'item': item_token,
 	'stats': {
+		'max_hp': 0,
 		'atk': 0,
 		'def': 0,
 		'spa': 0,
 		'spd': 0,
-		'spe': 0}
-	},
+		'spe': 0},
 	'moves' : {
-		0 : move_state,
-		1 : move_state,
-		2 : move_state,
-		3 : move_state,
-	}
+		0 : default_move_state,
+		1 : default_move_state,
+		2 : default_move_state,
+		3 : default_move_state,
+	}}
 
-state = {
+default_state = {
 	'player' : {
-		'active' : pokemon_state,
+		'active' : default_pokemon_state,
 		'team' : {
-			0 : pokemon_state,
-			1 : pokemon_state,
-			2 : pokemon_state,
-			3 : pokemon_state,
-			4 : pokemon_state,
-			5 : pokemon_state,
+			0 : default_pokemon_state,
+			1 : default_pokemon_state,
+			2 : default_pokemon_state,
+			3 : default_pokemon_state,
+			4 : default_pokemon_state,
+			5 : default_pokemon_state,
 		}
 	},
 	'opponent' : {
-		'active' : pokemon_state, # UNK tokens for most things
+		'active' : default_pokemon_state, # UNK tokens for most things
 		'team' : {
-			0 : pokemon_state,
-			1 : pokemon_state,
-			2 : pokemon_state,
-			3 : pokemon_state,
-			4 : pokemon_state,
-			5 : pokemon_state,
+			0 : default_pokemon_state,
+			1 : default_pokemon_state,
+			2 : default_pokemon_state,
+			3 : default_pokemon_state,
+			4 : default_pokemon_state,
+			5 : default_pokemon_state,
 		}
 	},
 	'field' : {
@@ -103,10 +105,15 @@ state = {
 		'tormentopp' : False,
 		'tormentopptime' : 0,
 		'twoturnmove' : False,
-		'twoturnmovenum' : 0; #a move number for the move that is two turns long
+		'twoturnmovenum' : 0, #a move number for the move that is two turns long
 		'twoturnmoveopp' : False,
 		'twoturnmoveoppnum' : 0,
 		'confusion' : False,
 		'confusionopp' : False, 
 	},
 }
+
+def game_name_to_dex_name(s):
+	#makes a string lower-case and removes hyphens
+	return s.lower().replace('-', '')
+

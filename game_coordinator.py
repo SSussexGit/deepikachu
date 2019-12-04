@@ -1,3 +1,4 @@
+# coding=utf-8
 
 import time
 import sys
@@ -9,6 +10,8 @@ import copy
 # import custom structures (like MESSAGE, ACTION) and all agents
 from custom_structures import *
 from agents import *
+
+# TO RUN: python game_coordinator.py -p1 default -p2 default
 
 
 ''' 
@@ -286,7 +289,7 @@ if __name__ == '__main__':
 
 
     # start game 
-    simulator.stdin.write('>start {"formatid":"gen1randombattle"}\n')
+    simulator.stdin.write('>start {"formatid":"gen5randombattle"}\n')
     simulator.stdin.write('>player p1 {"name":"' + player1.name +'"}\n')
     simulator.stdin.write('>player p2 {"name":"' + player2.name +'"}\n')
     simulator.stdin.flush()	
@@ -341,7 +344,7 @@ if __name__ == '__main__':
     # print results
     game_over_message = filter_messages_by_id('win', game)[0]
     # pprint.pprint(game_over_message.message['info_json'])
-    print(game_over_message.message['info_json'])
+    #print(game_over_message.message['info_json'])
 
     # terminate game
     simulator.terminate()

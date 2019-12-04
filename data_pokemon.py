@@ -33,7 +33,6 @@ for terrain in terrains:
 	k+=1
 
 
-print(terrain_data)
 
 
 

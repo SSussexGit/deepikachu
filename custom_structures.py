@@ -1,3 +1,4 @@
+# coding=utf-8
 import copy
 
 PLAYER_IDS = ['p1', 'p2']
