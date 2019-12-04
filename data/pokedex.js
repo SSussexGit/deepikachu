@@ -15927,4 +15927,5 @@ let BattlePokedex = {
 	},
 };
 
+
 exports.BattlePokedex = BattlePokedex;
