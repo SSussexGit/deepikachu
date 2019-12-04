@@ -260,90 +260,89 @@ def create_agents_from_argv(args):
             raise ValueError('Agent type provided is not defined.')
         out.append(player)
         
-    print('Player 1:  ' + info[0])
-    print('Player 2:  ' + info[1])
+    print('Player 1:  ' + infos[0])
+    print('Player 2:  ' + infos[1])
     return tuple(out)
 
 if __name__ == '__main__':
 
-    for simno in range(1000):
-        print(f'\n\n\n\n\n ======  {simno}  ====== \n\n\n\n\n')
-        '''
-        START: Live code
-        Simulates one game.
-        # python game_coordinator.py -p1 default -p2 default
-        If not provied, use default agent
-        '''
 
-        # parse arguments and initialize players
-        player1, player2 = create_agents_from_argv(sys.argv)
+    '''
+    START: Live code
+    Simulates one game.
+    # python game_coordinator.py -p1 default -p2 default
+    If not provied, use default agent
+    '''
 
-        # opens: pokemon-showdown simulate-battle
-        simulator = subprocess.Popen('./pokemon-showdown simulate-battle', 
-            shell=True,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            universal_newlines=True)
+    # parse arguments and initialize players
+    player1, player2 = create_agents_from_argv(sys.argv)
+
+    # opens: pokemon-showdown simulate-battle
+    simulator = subprocess.Popen('./pokemon-showdown simulate-battle', 
+        shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        universal_newlines=True)
 
 
-        # start game 
-        simulator.stdin.write('>start {"formatid":"gen1randombattle"}\n')
-        simulator.stdin.write('>player p1 {"name":"' + player1.name +'"}\n')
-        simulator.stdin.write('>player p2 {"name":"' + player2.name +'"}\n')
-        simulator.stdin.flush()	
+    # start game 
+    simulator.stdin.write('>start {"formatid":"gen1randombattle"}\n')
+    simulator.stdin.write('>player p1 {"name":"' + player1.name +'"}\n')
+    simulator.stdin.write('>player p2 {"name":"' + player2.name +'"}\n')
+    simulator.stdin.flush()	
 
-        game = []
+    game = []
 
-        # game flow
-        while True:
-        
-            # receive a simulation update and inform players
-            new_messages = receive_simulator_message()
+    # game flow
+    while True:
+    
+        # receive a simulation update and inform players
+        new_messages = receive_simulator_message()
 
-            player1.receive_game_update(filter_messages_by_player('p1', new_messages))
-            player2.receive_game_update(filter_messages_by_player('p2', new_messages))
-            message_ids = retrieve_message_ids(new_messages)
-            game += new_messages
+        player1.receive_game_update(filter_messages_by_player('p1', new_messages))
+        player2.receive_game_update(filter_messages_by_player('p2', new_messages))
+        message_ids = retrieve_message_ids(new_messages)
+        game += new_messages
 
-            print('BOM')
-            for m in new_messages:
-                print(m.type, m.adressed_players, m.original_str)
-                if m.message['id'] == 'request':
-                    print(m.message['request_dict'].keys())
+        # print('BOM')
+        # for m in new_messages:
+        #     print(m.type, m.adressed_players, m.original_str)
+        #     if m.message['id'] == 'request':
+        #         print(m.message['request_dict'].keys())
 
-            print('EOM')
+        # print('EOM')
 
-            # check if game is over    
-            if 'win' in retrieve_message_ids(new_messages):
-                break
+        # check if game is over    
+        if 'win' in retrieve_message_ids(new_messages):
+            break
 
-            # if there are requests, answer them
-            if 'request' in message_ids: 
+        # if there are requests, answer them
+        if 'request' in message_ids: 
 
-                requests = filter_messages_by_id('request', new_messages)
-                for m_request in requests:
-                    player = m_request.adressed_players
-                    if len(player) != 1:
-                        raise ValueError('requests should only be addressed to one player')
+            requests = filter_messages_by_id('request', new_messages)
+            for m_request in requests:
+                player = m_request.adressed_players
+                if len(player) != 1:
+                    raise ValueError('requests should only be addressed to one player')
+                else:
+                    player = player[0]
+
+                # only request an action if request is not 'wait' request
+                # (requesting move ('active') or switch('forceSwitch'))
+                if not 'wait' in m_request.message['request_dict'].keys():
+                    if player == 'p1':
+                        action = player1.process_request(m_request)
                     else:
-                        player = player[0]
+                        action = player2.process_request(m_request)
 
-                    # only request an action if request is not 'wait' request
-                    # (requesting move ('active') or switch('forceSwitch'))
-                    if not 'wait' in m_request.message['request_dict'].keys():
-                        if player == 'p1':
-                            action = player1.process_request(m_request)
-                        else:
-                            action = player2.process_request(m_request)
-
-                        send_choice_to_simulator(action)
+                    send_choice_to_simulator(action)
 
 
-        # print results
-        game_over_message = filter_messages_by_id('win', game)[0]
-        # pprint.pprint(game_over_message.message['info_json'])
-        print(game_over_message.message['info_json'])
+    # print results
+    game_over_message = filter_messages_by_id('win', game)[0]
+    # pprint.pprint(game_over_message.message['info_json'])
+    print(game_over_message.message['info_json'])
 
-        # terminate game
-        simulator.terminate()
-        simulator.stdin.close()
+    # terminate game
+    simulator.terminate()
+    simulator.stdin.close()
