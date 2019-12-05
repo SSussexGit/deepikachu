@@ -33,6 +33,12 @@ for terrain in terrains:
 	k+=1
 
 
-
+#a map from type to int
+type_list = ["bug", "dark", "dragon", "electric", "fairy", "fighting", "fire", "flying", "ghost", "grass", "ground", "ice", "normal", "poison", "psychic", "rock", "steel", "water"]
+type_data = {}
+i = 0
+for type_string in type_list:
+	type_data[type_string] = {"num": i}
+	i+=1
 
 

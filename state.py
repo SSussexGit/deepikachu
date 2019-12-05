@@ -26,7 +26,7 @@ condition_token = None
 # 	2) use the current state and passing it through the policy function to output an action
 
 
-
+#to add: damage, priority, physical/special, 
 default_move_state = {
 	'disabled': False,
 	'id': move_token,
@@ -36,6 +36,7 @@ default_move_state = {
 	'disabled' : False #can only be disabled if pokemon is active
 }
 
+#to add: weight
 default_pokemon_state = {
 	'pokemon_id' : pokemon_token,
 	'type1' : type_token,
@@ -43,6 +44,7 @@ default_pokemon_state = {
 	'active': False, 
 	'baseAbility': ability_token,
 	'condition': condition_token,
+	'alive' : False,
 	'hp': 0, 
 	'level': 0,
 	'item': item_token,
