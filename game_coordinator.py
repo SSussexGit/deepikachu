@@ -196,6 +196,7 @@ def send_choice_to_simulator(player_action):
     Sends PlayerAction made by a player to the simulator
     '''
     player = player_action.player
+
     action_name = player_action.action['id']
     action_dict = player_action.action
 
@@ -349,3 +350,4 @@ if __name__ == '__main__':
         # terminate game
         simulator.terminate()
         simulator.stdin.close()
+        

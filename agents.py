@@ -13,6 +13,7 @@ from data_pokemon import *
 def get_valid_actions(state, message):
     '''
     From a current state and request message, get our valid actions 
+    Work from the message rather than the state since message has things like being stuck into outrage
     '''
     #start with all options and remove
     valid_list = [{'id':'move', 'movespec': '1'}, {'id':'move', 'movespec': '2'}, {'id':'move', 'movespec': '3'}, {'id':'move', 'movespec': '4'}, {'id':'switch', 'switchspec': '1'}, {'id':'switch', 'switchspec': '2'}, {'id':'switch', 'switchspec': '3'}, {'id':'switch', 'switchspec': '4'}, {'id':'switch', 'switchspec': '5'},  {'id':'switch', 'switchspec': '6'}]
@@ -25,28 +26,48 @@ def get_valid_actions(state, message):
         valid_list = [s for s in valid_list if not (s['id'] == 'move')]
 
     #go through the pokemon to make updates
+
     i = 1
-    for pokemon_dict_index in state['player']['team']:
-        pokemon_dict = state['player']['team'][pokemon_dict_index]
-        if (pokemon_dict['active'] == True):
+    for pokemon_dict in message['side']['pokemon']:
+        if ((pokemon_dict['active'] == True) or (pokemon_dict['condition'] == '0 fnt')):
             #remove switching to the thing that is already active
-            s = {'id':'switch', 'switchspec': i}
+            s = {'id':'switch', 'switchspec': str(i)}
             if(s in valid_list):
-                valid_list.remove()
+                valid_list.remove(s)
+
         i+=1
 
-    #go through active moves and don't allow ones that are disabled or no pp. 
-    i = 1
-    for move_dict_index in state['player']['active']['moves']:
-        move_dict = state['player']['active']['moves'][move_dict_index]
+    #if something has less than 4 moves remove options. bit hacky
+    
+    if('active' in message):
+        for j in range(0, 4-len(message['active'][0]['moves'])):
+            s = {'id':'move', 'movespec': str(4-j)}
+            if(s in valid_list):
+                valid_list.remove(s)
 
-        if ((move_dict['pp'] == 0) or (move_dict['disabled'] == True)):
-            #keep the move if it is called struggle
-            if(move_dict['id']!= move_data['struggle']['num']):
-                s = {'id':'move', 'movespec': i}
-                if(s in valid_list):
-                    valid_list.remove(s)
-        i+=1
+        #if the active thing is trapped remove all switch options
+        if('trapped' in message['active'][0]):
+            valid_list = [s for s in valid_list if not (s['id'] == 'switch')]
+
+        #go through active moves and don't allow ones that are disabled or no pp. 
+        i = 1
+        for move_dict in message['active'][0]['moves']:
+            if ('pp' in move_dict): #if it doesn't have a pp term it is probably struggle
+                if ((move_dict['pp'] == 0) or (move_dict['disabled'] == True)):
+                    #keep the move if it is called struggle
+                    if(move_dict['id']!= 'struggle'):
+                        s = {'id':'move', 'movespec': str(i)}
+                        if(s in valid_list):
+                            valid_list.remove(s)
+            i+=1
+    else:
+        #if no active pokemon, no move options
+        for j in range(0, 4):
+            s = {'id':'move', 'movespec': str(4-j)}
+            if(s in valid_list):
+                valid_list.remove(s)
+
+
 
     return valid_list
 
@@ -150,9 +171,6 @@ class DefaultAgent:
                         pokemon_state['type2'] = None
                     
 
-
-                    
-
                     #if active set your active pokemon's details to this
                     if(pokemon_dict['active'] == True):
 
@@ -193,16 +211,17 @@ class DefaultAgent:
         Receives request sent by `pokemon-showdown simulate-game` and returns a PlayerAction
         '''
         message = request.message['request_dict']
-        print(message)
+        
+        #print(self.state)
         #first get our valid action space
         valid_actions = get_valid_actions(self.state, message)
 
         if (valid_actions == []):
-            random_action = 'default'
+            random_action = copy.deepcopy(ACTION['default'])
         else:
             random_action = random.choice(valid_actions)
         #choice = copy.deepcopy(ACTION['default'])
-        print(random_action)
+        
         return PlayerAction(self.id, random_action)
 
 class RandomAgent(DefaultAgent):
