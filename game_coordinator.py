@@ -187,7 +187,7 @@ def get_player_request(player, messages):
     '''
     request = []
     for m in messages:
-        if player in m.adressed_players and m.message['id'] == 'request':
+        if player in m.adressed_players and (m.message['id'] == 'request'):
             request.append(m.message)
     return request
 
@@ -222,6 +222,8 @@ def send_choice_to_simulator(player_action):
     elif action_name == 'switch':
         # switch
         action_str = 'switch ' + action_dict['switchspec']
+    elif action_name == 'teampreview':
+        action_str = 'team' + action_dict['teamspec']
     else:
         raise ValueError("Trying to send unspecified action to simulator")
 

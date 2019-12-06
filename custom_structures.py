@@ -143,8 +143,8 @@ ACTION = {
 	'move_mega' :  	dict(id='move_mega', movespec=None),
 	'move_zmove' :  dict(id='move_zmove', movespec=None),
 	'switch' :  	dict(id='switch', switchspec=None),
+	'teampreview' : dict(id='teampreview', teamspec=None)
 }
-
 
 
 class SimulatorMessage:
