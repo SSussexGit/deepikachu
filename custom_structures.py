@@ -39,6 +39,7 @@ MESSAGE = {
 	'win' :           dict(id='win', player=None, info_json=None),
 	'tie' :           dict(id='tie'),
 	'error' :         dict(id='error', message=None),
+	'teampreview' :   dict(id='teampreview', message=None),
 
 	# Major actions
 	'move' :          dict(id='move', pokemon=None, move=None, target=None, additional_info_=None, additional_info_2=None),

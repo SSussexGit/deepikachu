@@ -270,7 +270,6 @@ def create_agents_from_argv(args):
 
 if __name__ == '__main__':
 
-
     '''
     START: Live code
     Simulates one game.
@@ -281,7 +280,7 @@ if __name__ == '__main__':
     # parse arguments and initialize players
     player1, player2 = create_agents_from_argv(sys.argv)
 
-    for i in range(0, 20):
+    for i in range(0, 1):
         # opens: pokemon-showdown simulate-battle
         simulator = subprocess.Popen('./pokemon-showdown simulate-battle', 
             shell=True,
@@ -290,7 +289,7 @@ if __name__ == '__main__':
             universal_newlines=True)
 
         # start game 
-        simulator.stdin.write('>start {"formatid":"gen5randombattle"}\n')
+        simulator.stdin.write('>start {"formatid":"gen5ou"}\n')
         simulator.stdin.write('>player p1 {"name":"' + player1.name +'"}\n')
         simulator.stdin.write('>player p2 {"name":"' + player2.name +'"}\n')
         simulator.stdin.flush()	

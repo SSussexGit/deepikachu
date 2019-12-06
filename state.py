@@ -1,6 +1,6 @@
 
 
-
+import copy
 
 
 # dummy variable to represent tokens
@@ -46,7 +46,7 @@ default_pokemon_state = {
 	'condition': condition_token,
 	'alive' : False,
 	'hp': 0, 
-	'level': 0,
+	'level': 100,
 	'item': item_token,
 	'stats': {
 		'max_hp': 0,
@@ -56,33 +56,33 @@ default_pokemon_state = {
 		'spd': 0,
 		'spe': 0},
 	'moves' : {
-		0 : default_move_state,
-		1 : default_move_state,
-		2 : default_move_state,
-		3 : default_move_state,
+		0 : copy.deepcopy(default_move_state),
+		1 : copy.deepcopy(default_move_state),
+		2 : copy.deepcopy(default_move_state),
+		3 : copy.deepcopy(default_move_state),
 	}}
 
 default_state = {
 	'player' : {
-		'active' : default_pokemon_state,
+		'active' : copy.deepcopy(default_pokemon_state),
 		'team' : {
-			0 : default_pokemon_state,
-			1 : default_pokemon_state,
-			2 : default_pokemon_state,
-			3 : default_pokemon_state,
-			4 : default_pokemon_state,
-			5 : default_pokemon_state,
+			0 : copy.deepcopy(default_pokemon_state),
+			1 : copy.deepcopy(default_pokemon_state),
+			2 : copy.deepcopy(default_pokemon_state),
+			3 : copy.deepcopy(default_pokemon_state),
+			4 : copy.deepcopy(default_pokemon_state),
+			5 : copy.deepcopy(default_pokemon_state),
 		}
 	},
 	'opponent' : {
-		'active' : default_pokemon_state, # UNK tokens for most things
+		'active' : copy.deepcopy(default_pokemon_state), # UNK tokens for most things
 		'team' : {
-			0 : default_pokemon_state,
-			1 : default_pokemon_state,
-			2 : default_pokemon_state,
-			3 : default_pokemon_state,
-			4 : default_pokemon_state,
-			5 : default_pokemon_state,
+			0 : copy.deepcopy(default_pokemon_state),
+			1 : copy.deepcopy(default_pokemon_state),
+			2 : copy.deepcopy(default_pokemon_state),
+			3 : copy.deepcopy(default_pokemon_state),
+			4 : copy.deepcopy(default_pokemon_state),
+			5 : copy.deepcopy(default_pokemon_state),
 		}
 	},
 	'field' : {
@@ -117,5 +117,5 @@ default_state = {
 
 def game_name_to_dex_name(s):
 	#makes a string lower-case and removes hyphens
-	return s.lower().replace('-', '').replace('. ', '')
+	return s.lower().replace('-', '').replace('. ', '').replace("'", "")
 
