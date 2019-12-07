@@ -16,17 +16,35 @@ def get_valid_actions(state, message):
     Work from the message rather than the state since message has things like being stuck into outrage
     '''
     #start with all options and remove
-    valid_list = [{'id':'move', 'movespec': '1'}, {'id':'move', 'movespec': '2'}, {'id':'move', 'movespec': '3'}, {'id':'move', 'movespec': '4'}, {'id':'switch', 'switchspec': '1'}, {'id':'switch', 'switchspec': '2'}, {'id':'switch', 'switchspec': '3'}, {'id':'switch', 'switchspec': '4'}, {'id':'switch', 'switchspec': '5'},  {'id':'switch', 'switchspec': '6'}]
+    valid_list = [
+        {'id':'move', 'movespec': '1'}, 
+        {'id':'move', 'movespec': '2'}, 
+        {'id':'move', 'movespec': '3'}, 
+        {'id':'move', 'movespec': '4'}, 
+        {'id':'switch', 'switchspec': '1'}, 
+        {'id':'switch', 'switchspec': '2'}, 
+        {'id':'switch', 'switchspec': '3'}, 
+        {'id':'switch', 'switchspec': '4'}, 
+        {'id':'switch', 'switchspec': '5'},  
+        {'id':'switch', 'switchspec': '6'},
+    ]
 
-    #check if in a position with forceSwitch (can switch to anything alive except active)
+    # check if we are in the team preview stage
+    # completely disjoint set of options, so return list right here and now
+    if ('teamPreview' in message):
+        # Note: in theory could provide order like `412356`
+        # but only the active pokemon is really a choice (here: 4)
+        # and simulator supports just specifying first pokemon
+        teamsize = int(message['maxTeamSize'])
+        return [{'id':'team', 'teamspec': str(s)} for s in range(1, teamsize + 1)]
 
+    # check if in a position with forceSwitch (can switch to anything alive except active)
     #just check if forceswitch in the message since never false
     if ('forceSwitch' in message):
         #remove all moves
         valid_list = [s for s in valid_list if not (s['id'] == 'move')]
 
-    #go through the pokemon to make updates
-
+    # go through the pokemon to make updates to valid moves
     i = 1
     for pokemon_dict in message['side']['pokemon']:
         if ((pokemon_dict['active'] == True) or (pokemon_dict['condition'] == '0 fnt')):
@@ -46,7 +64,7 @@ def get_valid_actions(state, message):
                 valid_list.remove(s)
 
         #if the active thing is trapped remove all switch options
-        if('trapped' in message['active'][0]):
+        if('trapped' in message['active'][0] or'maybeTrapped' in message['active'][0]):
             valid_list = [s for s in valid_list if not (s['id'] == 'switch')]
 
         #go through active moves and don't allow ones that are disabled or no pp. 
@@ -74,7 +92,6 @@ def get_valid_actions(state, message):
 
 
         #check if something is active (if not must switch to something alive)
-
 
 
 class DefaultAgent:
@@ -220,7 +237,7 @@ class DefaultAgent:
                     pokemon_dict = copy.deepcopy(self.state['opponent']['team'][pokemon_dict_index])
                     if(pokemon_dict['active'] == True):
                         pokemon_dict['alive'] = False
-                        pokemon_dict['hp'] = 0;
+                        pokemon_dict['hp'] = 0
             
 
             #dealing with switching
@@ -346,19 +363,24 @@ class DefaultAgent:
         
             #if its another kind of request update the field or opponent's side
             elif('pokemon' in message.message):
-                    self.player_specific_update(message.message)
+                # TODO DEBUG
+                self.player_specific_update(message.message)
+                pass
             else:
                 #if it's none of the above it pertains to a field effect
-                self.field_effect_update(message.message)
-            print(message.message)
-        self.history += messages
 
+                # TODO DEBUG
+                # self.field_effect_update(message.message)
+                pass
+
+            # print(message.message)
+        self.history += messages
 
     def process_request(self, request):
         '''
         Receives request sent by `pokemon-showdown simulate-game` and returns a PlayerAction
         '''
-        #print(self.state)
+        # Note: `default` also works for teamPreview stage
         choice = copy.deepcopy(ACTION['default'])
         return PlayerAction(self.id, choice)
 
@@ -372,7 +394,6 @@ class RandomAgent(DefaultAgent):
         '''
         message = request.message['request_dict']
         
-        #print(self.state)
         #first get our valid action space
         valid_actions = get_valid_actions(self.state, message)
 
@@ -382,5 +403,81 @@ class RandomAgent(DefaultAgent):
             random_action = random.choice(valid_actions)
 
         return PlayerAction(self.id, random_action)
+
+class HumanAgent(DefaultAgent):
+    '''
+    Class implementing player choosing random (valid) moves
+    '''
+    def __action_dict_to_str(self, d):
+        action_name = d['id']
+        if action_name == 'team':
+            s = 'team ' + d['teamspec']
+        elif action_name == 'default':
+            s = 'default'
+        elif action_name == 'undo':
+            s = 'undo'
+        elif action_name == 'move':
+            s = 'move ' + d['movespec']
+        elif action_name == 'move_mega':
+            s = 'move ' + d['movespec'] + ' mega'
+        elif action_name == 'move_zmove':
+            s = 'move ' + d['movespec'] + ' zmove'
+        elif action_name == 'switch':
+            s = 'switch ' + d['switchspec']
+        else:
+            raise ValueError("Unspecified action in parsing function")
+        return s #"\'" + s + "\'"
+
+    def __pretty(self, d, indent=0):
+        gap = ' '
+        line = 20 * '-'
+        for key, value in d.items():
+            if indent == 2:
+                # after a certain depth just print a line 
+                # s.t. its not too long
+                print(gap * indent + "{:<12}".format(str(key)) + '\t' + str(value))
+            else:
+                if isinstance(value, list):
+                    print(gap * indent + "{:<12}".format(str(key)))
+                    for j, el in enumerate(value):
+                        print(gap * indent + line + "  " + str(j + 1) + "  " + line)
+                        if isinstance(el, dict):
+                            self.__pretty(el, indent+1)
+                        else:
+                            print(gap * (indent+1) + str(el))
+                elif isinstance(value, dict):
+                    print(gap * indent + "{:<12}".format(str(key)))
+                    self.__pretty(value, indent+1)
+                else:
+                    print(gap * indent + "{:<12}".format(str(key)) + '\t' + str(value))
+
+    def process_request(self, request):
+        '''
+        Receives request sent by `pokemon-showdown simulate-game` and returns a PlayerAction 
+        as specified by human command line input
+        '''
+
+        message = request.message['request_dict']
+
+        # pretty print request for human readability
+        print('\n======  CHOICE REQUEST   ======\n')
+        self.__pretty(message, indent=0)
+        print(f'\n\nVALID OPTIONS: {str()}')
+        valid_actions_str = [self.__action_dict_to_str(d) for d in get_valid_actions(self.state, message)]
+        for s in valid_actions_str:
+            print('  ' + s)
+        print('\nEnter move:')
+        while (True):
+            # request move until valid choice
+            userstring = sys.stdin.readline()
+            if userstring.split('\n')[0] in valid_actions_str:
+                break
+            print('Invalid move. Enter move:')
+        print('\n======  GAME PROGRESS  ======\n')
+
+        action = copy.deepcopy(ACTION['userspecified'])
+        action['string'] = userstring
+        return PlayerAction(self.id, action)
+
 
 

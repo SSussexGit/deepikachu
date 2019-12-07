@@ -131,6 +131,7 @@ ACTION = {
 	'team' :        dict(id='team', teamspec=None),
 
 	# To auto-choose a decision. This will be the first possible legal choice
+	# Note: this also works for teamPreview stage
 	'default' :     dict(id='default'),
 
 	# To cancel a previously-made choice. This can only be done if the another player needs to make a choice and hasn't done so
@@ -143,7 +144,9 @@ ACTION = {
 	'move_mega' :  	dict(id='move_mega', movespec=None),
 	'move_zmove' :  dict(id='move_zmove', movespec=None),
 	'switch' :  	dict(id='switch', switchspec=None),
-	'teampreview' : dict(id='teampreview', teamspec=None)
+
+	# move string provided by human player via command line
+	'userspecified' : dict(id='userspecified', string=None),
 }
 
 

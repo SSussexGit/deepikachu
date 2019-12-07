@@ -171,14 +171,23 @@ def filter_messages_by_id(id, messages):
             id_messages.append(m)
     return id_messages
 
-def retrieve_message_ids(messages):
+def retrieve_message_ids_set(messages):
     '''
-    Returns list of all message ids in list of SimulatorMessages
+    Returns set of all message ids in list of SimulatorMessages
     '''
     ids = set()
     for m in messages:
         ids.add(m.message['id'])
     return list(ids)
+
+def retrieve_message_ids_list(messages):
+    '''
+    Returns list of all message ids in list of SimulatorMessages
+    '''
+    ids = []
+    for m in messages:
+        ids.append(m.message['id'])
+    return ids
 
 def get_player_request(player, messages):
     '''
@@ -222,9 +231,11 @@ def send_choice_to_simulator(player_action):
     elif action_name == 'switch':
         # switch
         action_str = 'switch ' + action_dict['switchspec']
-    elif action_name == 'teampreview':
-        action_str = 'team' + action_dict['teamspec']
+    elif action_name == 'userspecified':
+        # user specified move via command line
+        action_str = action_dict['string']
     else:
+        print('Unspecified')
         raise ValueError("Trying to send unspecified action to simulator")
 
     out = '>' + player + ' ' + action_str + '\n'
@@ -253,7 +264,7 @@ def create_agents_from_argv(args):
     
     # use default if not provided
     infos = [info1 if info1 else 'default', info2 if info2 else 'default']
-    names = ['Scott', 'Lars']
+    names = ['Player 1', 'Player 2']
     ps = ['p1', 'p2']
     out = []
     for j in range(2):
@@ -262,6 +273,8 @@ def create_agents_from_argv(args):
             player = DefaultAgent(p, name=name)
         elif info == 'random':
             player = RandomAgent(p, name=name)
+        elif info == 'human':
+            player = HumanAgent(p, name=name)
         else:
             raise ValueError('Agent type provided is not defined.')
         out.append(player)
@@ -280,9 +293,12 @@ if __name__ == '__main__':
     '''
 
     # parse arguments and initialize players
-    player1, player2 = create_agents_from_argv(sys.argv)
+    SIMS = 1
+    for i in range(0, SIMS):
+        print(f'Simulation # {i+1}/{SIMS}')
 
-    for i in range(0, 1):
+        player1, player2 = create_agents_from_argv(sys.argv)
+
         # opens: pokemon-showdown simulate-battle
         simulator = subprocess.Popen('./pokemon-showdown simulate-battle', 
             shell=True,
@@ -291,6 +307,7 @@ if __name__ == '__main__':
             universal_newlines=True)
 
         # start game 
+        # simulator.stdin.write('>start {"formatid":"gen5randombattle"}\n')
         simulator.stdin.write('>start {"formatid":"gen5ou"}\n')
         simulator.stdin.write('>player p1 {"name":"' + player1.name +'"}\n')
         simulator.stdin.write('>player p2 {"name":"' + player2.name +'"}\n')
@@ -298,34 +315,54 @@ if __name__ == '__main__':
 
         game = []
 
-        # game flow
+        outstanding_requests = []
+
+        # regular game flow
         while True:
         
             # receive a simulation update and inform players
             new_messages = receive_simulator_message()
-
-            player1.receive_game_update(filter_messages_by_player('p1', new_messages))
-            player2.receive_game_update(filter_messages_by_player('p2', new_messages))
-            message_ids = retrieve_message_ids(new_messages)
+            message_ids = retrieve_message_ids_set(new_messages)
             game += new_messages
-
-            # print('BOM')
+            
             # for m in new_messages:
-            #     print(m.type, m.adressed_players, m.original_str)
-            #     if m.message['id'] == 'request':
-            #         print(m.message['request_dict'].keys())
+            #     if not m.message['id'] == 'request':
+            #         print(m.original_str)
+            #     else:
+            #         pprint.pprint(m.message['request_dict'])
+            # for m in new_messages:
+            #     if m.message['id'] == 'error':
+            #         print(m.original_str)
 
-            # print('EOM')
+
+            # if at least one player is human print all messages (except requests)
+            if isinstance(player1, HumanAgent):
+                for m in filter_messages_by_player('p1', new_messages):
+                    if not m.message['id'] == 'request':
+                        print(m.original_str)
+            if isinstance(player2, HumanAgent):
+                for m in filter_messages_by_player('p2', new_messages):
+                    if not m.message['id'] == 'request':
+                        print(m.original_str)
 
             # check if game is over    
-            if 'win' in retrieve_message_ids(new_messages):
+            if 'win' in message_ids:
                 break
 
-            # if there are requests, answer them
+            # if there are requests, record them
             if 'request' in message_ids: 
+                outstanding_requests += filter_messages_by_id('request', new_messages)
+            
+            # regular messages f this was a normal update, then send updates to players, and afterwards request move
+            else:
+                
+                # 1) update players on new information
+                player1.receive_game_update(filter_messages_by_player('p1', new_messages))
+                player2.receive_game_update(filter_messages_by_player('p2', new_messages))
 
-                requests = filter_messages_by_id('request', new_messages)
-                for m_request in requests:
+                # 2) request outstanding moves
+                while outstanding_requests:
+                    m_request = outstanding_requests.pop(0)
                     player = m_request.adressed_players
                     if len(player) != 1:
                         raise ValueError('requests should only be addressed to one player')
@@ -333,7 +370,7 @@ if __name__ == '__main__':
                         player = player[0]
 
                     # only request an action if request is not 'wait' request
-                    # (requesting move ('active') or switch('forceSwitch'))
+                    # (requesting move ('active') or switch ('forceSwitch') or team ('teamPreview'))
                     if not 'wait' in m_request.message['request_dict'].keys():
                         if player == 'p1':
                             action = player1.process_request(m_request)
@@ -341,6 +378,10 @@ if __name__ == '__main__':
                             action = player2.process_request(m_request)
 
                         send_choice_to_simulator(action)
+                
+
+
+
 
 
         # print results
