@@ -293,7 +293,7 @@ if __name__ == '__main__':
     '''
 
     # parse arguments and initialize players
-    SIMS = 1000
+    SIMS = 100
     for i in range(0, SIMS):
         print(f'Simulation # {i+1}/{SIMS}')
 

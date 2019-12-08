@@ -143,19 +143,35 @@ class DefaultAgent:
 
             #extract hp, max hp and condition
             #first split on spaces and check length to see if painted or status.
-            
             condition_list = pokemon_dict['condition'].split(' ')
-            if(len(condition_list) == 2):
-                if(condition_list[1] == 'fnt'):
-                    pokemon_state['alive'] = False
-                if(condition_list[1] in status_data):
-                    pokemon_state['condition'] = status_data[condition_list[1]]['num']
+            if(len(condition_list) > 1):
+                for condition in condition_list[1:]:
+                    if(condition_list[1] == 'fnt'):
+                        pokemon_state['alive'] = False
+                    
+                    #status confusion handled as special case terrain effect
+                    for status_key in status_data:
+                        if((status_key in condition_list[1]) and (status_key != 'confusion')):
+                            pokemon_state['condition'] = status_data[status_key]['num']
+                        else:
+                            pokemon_state['condition'] = status_data[status_key]['num']
+                    if("confusion" in condition_list):
+                        self.state['field']['confusion'] = True
+                    else:
+                        self.state['field']['confusion'] = False
+                    
 
             #then split first on '/' to get hp values
             health_values = condition_list[0].split('/')
             if(len(health_values) == 2):
                 pokemon_state['stats']['max_hp'] = health_values[1]
             pokemon_state['hp'] = health_values[0]
+            
+            #set alive status
+            if(health_values[0] != '0'):
+                pokemon_state['alive'] = True
+            else: 
+                pokemon_state['alive'] = False
 
             #extract item information
             item_string = pokemon_dict['item']
@@ -217,6 +233,77 @@ class DefaultAgent:
             i+=1
         return
 
+    def impute_pokemon(self, message, pokemon_string):
+        '''
+        adds the pokemon name info to the opponent's team and returns the location it was added
+        also adds the type and base stats
+        '''
+        pokemon_location = None
+        none_list = []
+
+        for pokemon_dict_index in self.state['opponent']['team']:
+            pokemon_dict = copy.deepcopy(self.state['opponent']['team'][pokemon_dict_index])
+            if(pokemon_dict['pokemon_id'] == pokedex_data[game_name_to_dex_name(pokemon_string)]['num']):
+                pokemon_location = pokemon_dict_index
+            if(pokemon_dict['pokemon_id'] == None):
+                none_list.append(pokemon_dict_index)
+            #make all the active status false
+            self.state['opponent']['team'][pokemon_dict_index]['active'] = False
+
+        #if already in the team then just update at that location 
+        if pokemon_location != None:
+            self.state['opponent']['team'][pokemon_location]['active'] = True 
+            
+        else:
+            if(len(none_list) == 0):
+                raise ValueError("Opponent's pokemon not seen in their team and team is full")
+            pokemon_location = none_list[0]
+            self.state['opponent']['active'] = self.state['opponent']['team'][pokemon_location]
+            self.state['opponent']['team'][pokemon_location]['pokemon_id'] = pokedex_data[game_name_to_dex_name(pokemon_string)]['num']
+            self.state['opponent']['team'][pokemon_location]['active'] = True 
+            #if not in the team yet need to fill up the slots with everything
+            types_list = pokedex_data[game_name_to_dex_name(pokemon_string)]['types']
+            
+            if(len(types_list)==2):
+                self.state['opponent']['team'][pokemon_location]['type2'] = type_data[types_list[1].lower()]['num']
+            
+            self.state['opponent']['team'][pokemon_location]['type1'] = type_data[types_list[0].lower()]['num']
+
+        #upon switching in or being in team preview the thing must be alive
+        self.state['opponent']['team'][pokemon_location]['alive'] = True
+
+        #add the base stats on
+        for key in self.state['opponent']['team'][pokemon_location]['stats']:
+            #handle max_hp seperately after because it is given in the condition
+            if key == 'max_hp':
+                self.state['opponent']['team'][pokemon_location]['stats'][key] = pokedex_data[game_name_to_dex_name(pokemon_string)]['baseStats']['hp']
+            else:
+                self.state['opponent']['team'][pokemon_location]['stats'][key] = pokedex_data[game_name_to_dex_name(pokemon_string)]['baseStats'][key]
+        
+        return pokemon_location
+
+    def handle_poke_messages(self, message):
+        pokemon_string = message['details'].split(',')[0]
+
+        pokemon_location = self.impute_pokemon(message, pokemon_string)
+
+        #set the things hp to be 100
+        self.state['opponent']['team'][pokemon_location]['hp'] = 100
+
+        return
+
+    def get_pokemon_index(self, pokemon_string):
+        pokemon_location = None
+        for pokemon_dict_index in self.state['opponent']['team']:
+            pokemon_dict = copy.deepcopy(self.state['opponent']['team'][pokemon_dict_index])
+            if(pokemon_dict['pokemon_id'] == pokedex_data[game_name_to_dex_name(pokemon_string)]['num']):
+                pokemon_location = pokemon_dict_index
+            if(pokemon_dict['pokemon_id'] == None):
+                none_list.append(pokemon_dict_index)
+        if(pokemon_location == None):
+            raise ValueError("could not find pokemon in opponents team")
+        return pokemon_index
+
     def player_specific_update(self, message):
         '''
         extracts the player and pokemon from a pokemon field
@@ -227,6 +314,10 @@ class DefaultAgent:
         #extract the player id from the player part
         player_id = player_pokemon[0][:2]
         pokemon_name = player_pokemon[1]
+
+
+        #update from a 'poke' message if we have teampreview
+
         #only need to update if it effects the opponent
         if(player_id != self.id):
             #assume it always updates the active pokemon
@@ -247,36 +338,7 @@ class DefaultAgent:
                 pokemon_location = None
                 none_list = []
 
-                for pokemon_dict_index in self.state['opponent']['team']:
-                    pokemon_dict = copy.deepcopy(self.state['opponent']['team'][pokemon_dict_index])
-                    if(pokemon_dict['pokemon_id'] == pokedex_data[game_name_to_dex_name(pokemon_name)]['num']):
-                        pokemon_location = pokemon_dict_index
-                    if(pokemon_dict['pokemon_id'] == None):
-                        none_list.append(pokemon_dict_index)
-                    #make all the active status false
-                    self.state['opponent']['team'][pokemon_dict_index]['active'] = False
-
-                #if already in the team then just update at that location 
-                if pokemon_location != None:
-                    self.state['opponent']['team'][pokemon_location]['active'] = True 
-                    
-                else:
-                    if(len(none_list) == 0):
-                        raise ValueError("Opponent's pokemon not seen in their team and team is full")
-                    pokemon_location = none_list[0]
-                    self.state['opponent']['active'] = self.state['opponent']['team'][pokemon_location]
-                    self.state['opponent']['team'][pokemon_location]['pokemon_id'] = pokedex_data[game_name_to_dex_name(pokemon_name)]['num']
-                    self.state['opponent']['team'][pokemon_location]['active'] = True 
-                    #if not in the team yet need to fill up the slots with everything
-                    types_list = pokedex_data[game_name_to_dex_name(pokemon_name)]['types']
-                    
-                    if(len(types_list)==2):
-                        self.state['opponent']['team'][pokemon_location]['type2'] = type_data[types_list[1].lower()]['num']
-                    
-                    self.state['opponent']['team'][pokemon_location]['type1'] = type_data[types_list[0].lower()]['num']
-
-                #upon switching in the thing must be alive
-                self.state['opponent']['team'][pokemon_location]['alive'] = True
+                pokemon_location = self.impute_pokemon(message, pokemon_name)
                 #need to update the hp, status
                 #split hp on the space, then on the /
                 hp_condition = message['hp'].split(' ')
@@ -292,20 +354,12 @@ class DefaultAgent:
                 #copy into the active slot since it was switched in
                 self.state['opponent']['active'] = copy.deepcopy(self.state['opponent']['team'][pokemon_location]) 
                 
+                #if they just switched they cannot have confusion
+                self.state['field']['confusionopp'] = False
 
         #minordamage to update hp
         if message['id'] == 'minordamage' or message['id'] == 'minorheal':
-            pokemon_location = None
-            for pokemon_dict_index in self.state['opponent']['team']:
-                pokemon_dict = copy.deepcopy(self.state['opponent']['team'][pokemon_dict_index])
-                if(pokemon_dict['pokemon_id'] == pokedex_data[game_name_to_dex_name(pokemon_name)]['num']):
-                    pokemon_location = pokemon_dict_index
-                if(pokemon_dict['pokemon_id'] == None):
-                    none_list.append(pokemon_dict_index)
-                #make all the active status false
-                self.state['opponent']['team'][pokemon_dict_index]['active'] = False
-            if(pokemon_location == None):
-                raise ValueError("minordamage: could not find pokemon in opponents team")
+            pokemon_location = self.get_pokemon_index(pokemon_name)
             #need to update the hp, status
             #split hp on the space, then on the /
             hp_condition = message['hp'].split(' ')
@@ -337,7 +391,42 @@ class DefaultAgent:
 
         #would be helpful to get in info about taunt, encore, torment
 
-        #handle the 'poke' message before teampreview that gives the opponent's pokemon names
+        #handle minor status message
+        if(message['id'] == 'minorstatus'):
+            pokemon_location = self.get_pokemon_index(pokemon_name)
+            status_string = message['status']
+            if (status_string == 'confusion'):
+                self.state['field']['confusionopp'] = True
+            else:
+                self.state['opponent']['team'][pokemon_location]['status'] = status_data[status_string]['num']
+
+        #handle minorstart for confusion induced by moves like outrage ending
+        if(message['id'] == 'minorstart'):
+            pokemon_location = self.get_pokemon_index(pokemon_name)
+            effect_string = message['effect']
+            if (effect_string == 'confusion'):
+                self.state['field']['confusionopp'] = True
+
+        #handle minorend for confusion
+        if(message['id'] == 'minorstart'):
+            pokemon_location = self.get_pokemon_index(pokemon_name)
+            effect_string = message['effect']
+            if (effect_string == 'confusion'):
+                self.state['field']['confusionopp'] = False
+
+        #handle curestatus
+        if(message['id'] == 'minor_curestatus'):
+            pokemon_location = self.get_pokemon_index(pokemon_name)
+            status_string = message['status']
+            if (status_string == 'confusion'):
+                self.state['field']['confusionopp'] = False
+            else:
+                self.state['opponent']['team'][pokemon_location]['status'] = None
+
+        #handle cureteam which heals status of whole team
+        if(message['id'] == 'minor_curestatus'):
+            for pokemon_index in self.state['opponent']['team']:
+                self.state['opponent']['team'][pokemon_index]['status'] = None
 
         return
 
@@ -345,13 +434,17 @@ class DefaultAgent:
         if(message['id'] == 'minor_weather'):
             weather_string = game_name_to_dex_name(message['weather'].lower())
             if((weather_string != None) and (weather_string != 'none')):
-            	self.state['field']['weathertype'] = weather_data[weather_string]
+            	self.state['field']['weathertype'] = weather_data[weather_string]['num']
             else:
             	self.state['field']['weathertype'] = None
             #now need to also add in how many turns the weather been up for
         #handle terrains
 
         #handle imputing the ability if the opponent set terain (not really needed)
+
+        #handle trick room with minor_field and minor_fieldend
+
+        #handle confusion with minor_start
         return
 
     def receive_game_update(self, messages):
@@ -360,23 +453,21 @@ class DefaultAgent:
         Can move this into seperate functions if needed
         '''
         for message in messages:
-            #if you get a request completely update your side
-            if(message.message['id'] == 'request'):
-                self.request_update(message.message)
-        
+            if(message.message['id'] == 'poke'):
+                if(message.message['player'] != self.id):
+                    #if a 'poke' message about the opponent, fill in their team
+                    self.handle_poke_messages(message.message)
             #if its another kind of request update the field or opponent's side
             elif('pokemon' in message.message):
-                # TODO DEBUG
                 self.player_specific_update(message.message)
                 pass
             else:
                 #if it's none of the above it pertains to a field effect
 
-                # TODO DEBUG
                 self.field_effect_update(message.message)
                 pass
 
-            # print(message.message)
+            
         self.history += messages
 
     def process_request(self, request):
@@ -384,6 +475,8 @@ class DefaultAgent:
         Receives request sent by `pokemon-showdown simulate-game` and returns a PlayerAction
         '''
         # Note: `default` also works for teamPreview stage
+        #update state space
+        self.request_update(request.message)
         choice = copy.deepcopy(ACTION['default'])
         return PlayerAction(self.id, choice)
 
@@ -395,6 +488,8 @@ class RandomAgent(DefaultAgent):
         '''
         Receives request sent by `pokemon-showdown simulate-game` and returns a PlayerAction
         '''
+        #update state space
+        self.request_update(request.message)
         message = request.message['request_dict']
         
         #first get our valid action space
@@ -461,7 +556,6 @@ class HumanAgent(DefaultAgent):
         '''
 
         message = request.message['request_dict']
-
         # pretty print request for human readability
         print('\n======  CHOICE REQUEST   ======\n')
         self.__pretty(message, indent=0)
