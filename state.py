@@ -55,6 +55,12 @@ default_pokemon_state = {
 		'spa': 0,
 		'spd': 0,
 		'spe': 0},
+	'boosts': {
+		'atk': 0,
+		'def': 0,
+		'spa': 0,
+		'spd': 0,
+		'spe': 0}, 
 	'moves' : {
 		0 : copy.deepcopy(default_move_state),
 		1 : copy.deepcopy(default_move_state),

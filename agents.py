@@ -302,7 +302,7 @@ class DefaultAgent:
                 none_list.append(pokemon_dict_index)
         if(pokemon_location == None):
             raise ValueError("could not find pokemon in opponents team")
-        return pokemon_index
+        return pokemon_location
 
     def player_specific_update(self, message):
         '''
@@ -315,10 +315,8 @@ class DefaultAgent:
         player_id = player_pokemon[0][:2]
         pokemon_name = player_pokemon[1]
 
-
         #update from a 'poke' message if we have teampreview
-
-        #only need to update if it effects the opponent
+        #only need to update some things if it effects the opponent
         if(player_id != self.id):
             #assume it always updates the active pokemon
             #find the active pokemon and update it
@@ -357,76 +355,81 @@ class DefaultAgent:
                 #if they just switched they cannot have confusion
                 self.state['field']['confusionopp'] = False
 
-        #minordamage to update hp
-        if message['id'] == 'minordamage' or message['id'] == 'minorheal':
+            #minordamage to update hp
+            if message['id'] == 'minordamage' or message['id'] == 'minorheal':
+                pokemon_location = self.get_pokemon_index(pokemon_name)
+                #need to update the hp, status
+                #split hp on the space, then on the /
+                hp_condition = message['hp'].split(' ')
+                minmaxhp = hp_condition[0].split('/')
+                self.state['opponent']['team'][pokemon_location]['hp'] = minmaxhp[0]
+                #if it has a status condition get it in there
+                if(len(hp_condition) == 2):
+                    if(hp_condition != 'fnt'):
+                        self.state['opponent']['team'][pokemon_location]['condition'] = hp_condition[1]
+                else: 
+                    self.state['opponent']['team'][pokemon_location]['condition'] = None
+
+                if(message['id'] == 'minorheal'):
+                    if('move' in message):
+                        if('item' in message['move']): #if word item is in the message
+                            item_string = message['move'].split(': ')[-1]#extract the item from the heal message and impute in the item slot
+                            self.state['opponent']['team'][pokemon_location]['item'] = item_data[game_name_to_dex_name(item_string)]['num']
+
+                if(message['id'] == 'minordamage'):
+                    if('move' in message):
+                        if('item' in message['move']): #if word item is in the message
+                            item_string = message['move'].split(': ')[-1]#extract the item from the heal message and impute in the item slot
+                            self.state['opponent']['team'][pokemon_location]['item'] = item_data[game_name_to_dex_name(item_string)]['num']
+
+            #minor boost and unboost to update stats
+            #maybe in 'stats for the opponent side just store base stats and have another dict that stores boosts as +1 etc' upon switch set all boosts to 0
+
+            #when 'move' is used impute into their movepool
+
+            #would be helpful to get in info about taunt, encore, torment
+
+            #handle minor status message
+            if(message['id'] == 'minorstatus'):
+                pokemon_location = self.get_pokemon_index(pokemon_name)
+                status_string = message['status']
+                if (status_string == 'confusion'):
+                    self.state['field']['confusionopp'] = True
+                else:
+                    self.state['opponent']['team'][pokemon_location]['status'] = status_data[status_string]['num']
+
+            #handle minorstart for confusion induced by moves like outrage ending
+            if(message['id'] == 'minorstart'):
+                pokemon_location = self.get_pokemon_index(pokemon_name)
+                effect_string = message['effect']
+                if (effect_string == 'confusion'):
+                    self.state['field']['confusionopp'] = True
+
+            #handle minorend for confusion
+            if(message['id'] == 'minorstart'):
+                pokemon_location = self.get_pokemon_index(pokemon_name)
+                effect_string = message['effect']
+                if (effect_string == 'confusion'):
+                    self.state['field']['confusionopp'] = False
+
+            #handle curestatus
+            if(message['id'] == 'minor_curestatus'):
+                pokemon_location = self.get_pokemon_index(pokemon_name)
+                status_string = message['status']
+                if (status_string == 'confusion'):
+                    self.state['field']['confusionopp'] = False
+                else:
+                    self.state['opponent']['team'][pokemon_location]['status'] = None
+
+            #handle cureteam which heals status of whole team
+            if(message['id'] == 'minor_curestatus'):
+                for pokemon_index in self.state['opponent']['team']:
+                    self.state['opponent']['team'][pokemon_index]['status'] = None
+
+            #if the pokemon of interest is active, update the active slot
             pokemon_location = self.get_pokemon_index(pokemon_name)
-            #need to update the hp, status
-            #split hp on the space, then on the /
-            hp_condition = message['hp'].split(' ')
-            minmaxhp = hp_condition[0].split('/')
-            self.state['opponent']['team'][pokemon_location]['hp'] = minmaxhp[0]
-            #if it has a status condition get it in there
-            if(len(hp_condition) == 2):
-                if(hp_condition != 'fnt'):
-                    self.state['opponent']['team'][pokemon_location]['condition'] = hp_condition[1]
-            else: 
-                self.state['opponent']['team'][pokemon_location]['condition'] = None
-
-            if(message['id'] == 'minorheal'):
-                if('move' in message):
-                    if('item' in message['move']): #if word item is in the message
-                        item_string = message['move'].split(': ')[-1]#extract the item from the heal message and impute in the item slot
-                        self.state['opponent']['team'][pokemon_location]['item'] = item_data[game_name_to_dex_name(item_string)]['num']
-
-            if(message['id'] == 'minordamage'):
-                if('move' in message):
-                    if('item' in message['move']): #if word item is in the message
-                        item_string = message['move'].split(': ')[-1]#extract the item from the heal message and impute in the item slot
-                        self.state['opponent']['team'][pokemon_location]['item'] = item_data[game_name_to_dex_name(item_string)]['num']
-
-        #minor boost and unboost to update stats
-        #maybe in 'stats for the opponent side just store base stats and have another dict that stores boosts as +1 etc' upon switch set all boosts to 0
-
-        #when 'move' is used impute into their movepool
-
-        #would be helpful to get in info about taunt, encore, torment
-
-        #handle minor status message
-        if(message['id'] == 'minorstatus'):
-            pokemon_location = self.get_pokemon_index(pokemon_name)
-            status_string = message['status']
-            if (status_string == 'confusion'):
-                self.state['field']['confusionopp'] = True
-            else:
-                self.state['opponent']['team'][pokemon_location]['status'] = status_data[status_string]['num']
-
-        #handle minorstart for confusion induced by moves like outrage ending
-        if(message['id'] == 'minorstart'):
-            pokemon_location = self.get_pokemon_index(pokemon_name)
-            effect_string = message['effect']
-            if (effect_string == 'confusion'):
-                self.state['field']['confusionopp'] = True
-
-        #handle minorend for confusion
-        if(message['id'] == 'minorstart'):
-            pokemon_location = self.get_pokemon_index(pokemon_name)
-            effect_string = message['effect']
-            if (effect_string == 'confusion'):
-                self.state['field']['confusionopp'] = False
-
-        #handle curestatus
-        if(message['id'] == 'minor_curestatus'):
-            pokemon_location = self.get_pokemon_index(pokemon_name)
-            status_string = message['status']
-            if (status_string == 'confusion'):
-                self.state['field']['confusionopp'] = False
-            else:
-                self.state['opponent']['team'][pokemon_location]['status'] = None
-
-        #handle cureteam which heals status of whole team
-        if(message['id'] == 'minor_curestatus'):
-            for pokemon_index in self.state['opponent']['team']:
-                self.state['opponent']['team'][pokemon_index]['status'] = None
+            if self.state['opponent']['team'][pokemon_location]['active']:
+                self.state['opponent']['active'] = copy.deepcopy(self.state['opponent']['team'][pokemon_location])
 
         return
 
@@ -465,8 +468,7 @@ class DefaultAgent:
                 #if it's none of the above it pertains to a field effect
 
                 self.field_effect_update(message.message)
-                pass
-
+                #pass
             
         self.history += messages
 
