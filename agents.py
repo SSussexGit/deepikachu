@@ -167,7 +167,7 @@ class DefaultAgent:
 
             #extract ability information
             ability_string = pokemon_dict['baseAbility']
-            if(ability_string == ''):
+            if((ability_string == '') or (ability_string == None)):
                 pokemon_state['ability'] = 0 
             else:   
                 pokemon_state['ability'] = ability_data[ability_string]['num']
@@ -223,7 +223,7 @@ class DefaultAgent:
         '''
         subject = message['pokemon']
         #extract into player and pokemon
-        player_pokemon = subject.split(' ')
+        player_pokemon = subject.split(': ') #format is 'playerid: [pokemonname]'
         #extract the player id from the player part
         player_id = player_pokemon[0][:2]
         pokemon_name = player_pokemon[1]
@@ -344,7 +344,10 @@ class DefaultAgent:
     def field_effect_update(self, message):
         if(message['id'] == 'minor_weather'):
             weather_string = game_name_to_dex_name(message['weather'].lower())
-            self.state['field']['weathertype'] = weather_data[weather_string]
+            if((weather_string != None) and (weather_string != 'none')):
+            	self.state['field']['weathertype'] = weather_data[weather_string]
+            else:
+            	self.state['field']['weathertype'] = None
             #now need to also add in how many turns the weather been up for
         #handle terrains
 
@@ -370,7 +373,7 @@ class DefaultAgent:
                 #if it's none of the above it pertains to a field effect
 
                 # TODO DEBUG
-                # self.field_effect_update(message.message)
+                self.field_effect_update(message.message)
                 pass
 
             # print(message.message)

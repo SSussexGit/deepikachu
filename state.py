@@ -117,5 +117,5 @@ default_state = {
 
 def game_name_to_dex_name(s):
 	#makes a string lower-case and removes hyphens
-	return s.lower().replace('-', '').replace('. ', '').replace("'", "").replace('*', '')
+	return s.lower().replace('-', '').replace('. ', '').replace("'", "").replace('*', '').replace(" ", "")
 
