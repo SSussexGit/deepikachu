@@ -106,7 +106,7 @@ def parse_simulator_message(raw):
                 raise ValueError(
                     'Message by simulator and corresponding '
                     'MESSAGE object dont have the same number of fields '
-                    '(not enough fields to be filled in Message)')
+                    '(not enough fields to be filled in Message): ' + str(message))
             
             # fill message object in order
             for i, field in enumerate(message_fields):
@@ -236,7 +236,7 @@ def send_choice_to_simulator(player_action):
         action_str = action_dict['string']
     else:
         print('Unspecified')
-        raise ValueError("Trying to send unspecified action to simulator")
+        raise ValueError("Trying to send unspecified action to simulator: " + str(action_dict))
 
     out = '>' + player + ' ' + action_str + '\n'
     simulator.stdin.write(out)
@@ -260,7 +260,7 @@ def create_agents_from_argv(args):
         elif tmp == '-p2':
             info2 = options.pop(0)
         else:
-            raise ValueError('Invalid argument passed to game_coordinator.py.')
+            raise ValueError('Invalid argument passed to game_coordinator.py')
     
     # use default if not provided
     infos = [info1 if info1 else 'default', info2 if info2 else 'default']
@@ -276,7 +276,7 @@ def create_agents_from_argv(args):
         elif info == 'human':
             player = HumanAgent(p, name=name)
         else:
-            raise ValueError('Agent type provided is not defined.')
+            raise ValueError('Agent type provided is not defined:' + p)
         out.append(player)
         
     print('Player 1:  ' + infos[0])
@@ -379,10 +379,6 @@ if __name__ == '__main__':
 
                         send_choice_to_simulator(action)
                 
-
-
-
-
 
         # print results
         game_over_message = filter_messages_by_id('win', game)[0]

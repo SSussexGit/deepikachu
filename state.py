@@ -54,12 +54,6 @@ default_pokemon_state = {
 		'def': 0,
 		'spa': 0,
 		'spd': 0,
-		'spe': 0},
-	'boosts': {
-		'atk': 0,
-		'def': 0,
-		'spa': 0,
-		'spd': 0,
 		'spe': 0}, 
 	'moves' : {
 		0 : copy.deepcopy(default_move_state),
@@ -71,6 +65,14 @@ default_pokemon_state = {
 default_state = {
 	'player' : {
 		'active' : copy.deepcopy(default_pokemon_state),
+		'boosts': {
+			'atk': 0,
+			'def': 0,
+			'spa': 0,
+			'spd': 0,
+			'spe': 0,
+			'accuracy': 0,
+			'evasion': 0},
 		'team' : {
 			0 : copy.deepcopy(default_pokemon_state),
 			1 : copy.deepcopy(default_pokemon_state),
@@ -82,6 +84,14 @@ default_state = {
 	},
 	'opponent' : {
 		'active' : copy.deepcopy(default_pokemon_state), # UNK tokens for most things
+		'boosts': {
+			'atk': 0,
+			'def': 0,
+			'spa': 0,
+			'spd': 0,
+			'spe': 0,
+			'accuracy': 0,
+			'evasion': 0},
 		'team' : {
 			0 : copy.deepcopy(default_pokemon_state),
 			1 : copy.deepcopy(default_pokemon_state),

@@ -292,16 +292,16 @@ class DefaultAgent:
 
         return
 
-    def get_pokemon_index(self, pokemon_string):
+    def get_pokemon_index(self, pokemon_string, player = 'opponent'):
         pokemon_location = None
-        for pokemon_dict_index in self.state['opponent']['team']:
-            pokemon_dict = copy.deepcopy(self.state['opponent']['team'][pokemon_dict_index])
+        for pokemon_dict_index in self.state[player]['team']:
+            pokemon_dict = copy.deepcopy(self.state[player]['team'][pokemon_dict_index])
             if(pokemon_dict['pokemon_id'] == pokedex_data[game_name_to_dex_name(pokemon_string)]['num']):
                 pokemon_location = pokemon_dict_index
             if(pokemon_dict['pokemon_id'] == None):
                 none_list.append(pokemon_dict_index)
         if(pokemon_location == None):
-            raise ValueError("could not find pokemon in opponents team")
+            raise ValueError("could not find pokemon in opponents team: " + pokemon_string)
         return pokemon_location
 
     def player_specific_update(self, message):
@@ -327,7 +327,6 @@ class DefaultAgent:
                     if(pokemon_dict['active'] == True):
                         pokemon_dict['alive'] = False
                         pokemon_dict['hp'] = 0
-            
 
             #dealing with switching
             if message['id'] == 'switch' or message['id'] == "drag":
@@ -354,6 +353,10 @@ class DefaultAgent:
                 
                 #if they just switched they cannot have confusion
                 self.state['field']['confusionopp'] = False
+
+                #upon switch reset all the boosts
+                for stat_string in self.state['opponent']['boosts']:
+                    self.state['opponent']['boosts'][stat_string] = 0
 
             #minordamage to update hp
             if message['id'] == 'minordamage' or message['id'] == 'minorheal':
@@ -400,14 +403,12 @@ class DefaultAgent:
 
             #handle minorstart for confusion induced by moves like outrage ending
             if(message['id'] == 'minorstart'):
-                pokemon_location = self.get_pokemon_index(pokemon_name)
                 effect_string = message['effect']
                 if (effect_string == 'confusion'):
                     self.state['field']['confusionopp'] = True
 
             #handle minorend for confusion
-            if(message['id'] == 'minorstart'):
-                pokemon_location = self.get_pokemon_index(pokemon_name)
+            if(message['id'] == 'minorend'):
                 effect_string = message['effect']
                 if (effect_string == 'confusion'):
                     self.state['field']['confusionopp'] = False
@@ -426,10 +427,107 @@ class DefaultAgent:
                 for pokemon_index in self.state['opponent']['team']:
                     self.state['opponent']['team'][pokemon_index]['status'] = None
 
+            #handles boosts
+            if(message['id'] in ['minor_boost', 'minor_unboost', 'minor_setboost']):
+                pokemon_location = self.get_pokemon_index(pokemon_name)
+                stat_string = message['stat']
+                amount_int = int(message['amount'])
+                if(message['id'] == 'minor_boost'):
+                    self.state['opponent']['boosts'][stat_string] = min(self.state['opponent']['boosts'][stat_string] + amount_int, 6)
+                if(message['id'] == 'minor_unboost'):
+                    self.state['opponent']['boosts'][stat_string] = max(self.state['opponent']['boosts'][stat_string] - amount_int, -6)
+                if(message['id'] == 'minor_setboost'):
+                    self.state['opponent']['boosts'][stat_string] = amount_int
+            if(message['id'] in ['minor_clearboost', 'minor_clearnegativeboost', 'minor_clearpositiveboost', 'minor_invertboost', 'minor_copyboost']):
+                if(message['id'] == 'minor_clearboost'):
+                    for stat_string in self.state['opponent']['boosts']:
+                        self.state['opponent']['boosts'][stat_string] = 0
+                if(message['id'] == 'minor_clearnegativeboost'):
+                    for stat_string in self.state['opponent']['boosts']:
+                        if self.state['opponent']['boosts'][stat_string] < 0:
+                            self.state['opponent']['boosts'][stat_string] = 0
+                if(message['id'] == 'minor_clearpositiveboost'):
+                    for stat_string in self.state['opponent']['boosts']:
+                        if self.state['opponent']['boosts'][stat_string] < 0:
+                            self.state['opponent']['boosts'][stat_string] = 0
+                if(message['id'] == 'minor_invertboost'):
+                    for stat_string in self.state['player']['boosts']:
+                        self.state['player']['boosts'][stat_string] = -self.state['player']['boosts'][stat_string]
+                if(message['id'] == 'minor_copyboost'):
+                    for stat_string in self.state['player']['boosts']:
+                        self.state['player']['boosts'][stat_string] = self.state['opponent']['boosts'][stat_string]
+
             #if the pokemon of interest is active, update the active slot
             pokemon_location = self.get_pokemon_index(pokemon_name)
             if self.state['opponent']['team'][pokemon_location]['active']:
                 self.state['opponent']['active'] = copy.deepcopy(self.state['opponent']['team'][pokemon_location])
+        else:
+            #for yourself
+
+            #reset some things at switch-in
+            #dealing with switching
+            if message['id'] == 'switch' or message['id'] == "drag":
+
+                #if they just switched they cannot have confusion
+                self.state['field']['confusion'] = False
+
+                #upon switch reset all the boosts
+                for stat_string in self.state['player']['boosts']:
+                    self.state['player']['boosts'][stat_string] = 0
+
+            #handle boosts
+            if(message['id'] in ['minor_boost', 'minor_unboost', 'minor_setboost']):
+                stat_string = message['stat']
+                amount_int = int(message['amount'])
+                if(message['id'] == 'minor_boost'):
+                    self.state['player']['boosts'][stat_string] = min(self.state['player']['boosts'][stat_string] + amount_int, 6)
+                if(message['id'] == 'minor_unboost'):
+                    self.state['player']['boosts'][stat_string] = max(self.state['player']['boosts'][stat_string] - amount_int, -6)
+                if(message['id'] == 'minor_setboost'):
+                    self.state['player']['boosts'][stat_string] = amount_int
+            if(message['id'] in ['minor_clearboost', 'minor_clearnegativeboost', 'minor_clearpositiveboost', 'minor_invertboost', 'minor_copyboost']):
+                if(message['id'] == 'minor_clearboost'):
+                    for stat_string in self.state['player']['boosts']:
+                        self.state['player']['boosts'][stat_string] = 0
+                if(message['id'] == 'minor_clearnegativeboost'):
+                    for stat_string in self.state['player']['boosts']:
+                        if self.state['player']['boosts'][stat_string] < 0:
+                            self.state['player']['boosts'][stat_string] = 0
+                if(message['id'] == 'minor_clearpositiveboost'):
+                    for stat_string in self.state['player']['boosts']:
+                        if self.state['player']['boosts'][stat_string] < 0:
+                            self.state['player']['boosts'][stat_string] = 0
+                if(message['id'] == 'minor_invertboost'):
+                    for stat_string in self.state['player']['boosts']:
+                        self.state['player']['boosts'][stat_string] = -self.state['player']['boosts'][stat_string]
+                if(message['id'] == 'minor_copyboost'):
+                    for stat_string in self.state['player']['boosts']:
+                        self.state['player']['boosts'][stat_string] = self.state['opponent']['boosts'][stat_string]
+
+
+            #handle minorstart for confusion induced by moves like outrage ending
+            if(message['id'] == 'minorstart'):
+                effect_string = message['effect']
+                if (effect_string == 'confusion'):
+                    self.state['field']['confusion'] = True
+
+            #handle minorend for confusion
+            if(message['id'] == 'minorend'):
+                effect_string = message['effect']
+                if (effect_string == 'confusion'):
+                    self.state['field']['confusion'] = False
+
+        #sort clearallboost and swapboost
+        if(message['id'] == 'minor_swapboost'):
+            for stat_string in message['stats']:
+                temp_value = self.state['opponent']['boosts'][stat_string]
+                self.state['opponent']['boosts'][stat_string] = self.state['player']['boosts'][stat_string]
+                self.state['player']['boosts'][stat_string] = self.state['opponent']['boosts'][stat_string]
+        if(message['id'] == 'minor_clearallboost'):
+            for stat_string in message['stats']:
+                self.state['opponent']['boosts'][stat_string] = 0
+                self.state['player']['boosts'][stat_string] = 0
+
 
         return
 
@@ -525,7 +623,7 @@ class HumanAgent(DefaultAgent):
         elif action_name == 'switch':
             s = 'switch ' + d['switchspec']
         else:
-            raise ValueError("Unspecified action in parsing function")
+            raise ValueError("Unspecified action in parsing function: " + action_name)
         return s #"\'" + s + "\'"
 
     def __pretty(self, d, indent=0):
