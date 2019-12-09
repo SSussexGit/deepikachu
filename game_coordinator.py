@@ -6,6 +6,7 @@ import subprocess
 import json
 import pprint
 import copy
+import teams_data
 
 # import custom structures (like MESSAGE, ACTION) and all agents
 from custom_structures import *
@@ -309,8 +310,8 @@ if __name__ == '__main__':
         # start game 
         # simulator.stdin.write('>start {"formatid":"gen5randombattle"}\n')
         simulator.stdin.write('>start {"formatid":"gen5ou"}\n')
-        simulator.stdin.write('>player p1 {"name":"' + player1.name +'"}\n')
-        simulator.stdin.write('>player p2 {"name":"' + player2.name +'"}\n')
+        simulator.stdin.write('>player p1 {"name":"' + player1.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
+        simulator.stdin.write('>player p2 {"name":"' + player2.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
         simulator.stdin.flush()	
 
         game = []

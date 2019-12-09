@@ -136,6 +136,9 @@ class DefaultAgent:
                     move_string= "return"
                 if(move_string.startswith("frustration")):
                     move_string= "frustration"
+                #if(move_string.startswith("hiddenpower")):
+                    #move_string = move_string[0:-1]#include all but the number (only need in gen7)
+                    #print(move_string)
                 pokemon_state['moves'][j]['id'] = move_data[move_string]['num']
                 #if the max pp of the move is 0 in state, it is turn 0 so set the max pp and then pp = max pp
                 if(pokemon_state['moves'][j]['maxpp'] == 0):
@@ -192,7 +195,7 @@ class DefaultAgent:
             else:   
                 pokemon_state['item'] = item_data[item_string]['num']
             
-
+            
             #extract ability information
             ability_string = pokemon_dict['baseAbility']
             if((ability_string == '') or (ability_string == None)):
