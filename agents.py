@@ -105,6 +105,18 @@ class DefaultAgent:
         self.history = []
         self.state = copy.deepcopy(default_state)
 
+
+    def reset_player_field(self, player=''):
+        #set player='opp to update opponents side
+        #resets field state upon switches'
+        for effect_string in ['encore', 'seed', 'taunt', 'torment', 'twoturnmove', 'confusion', 'sub']:
+            self.state['field'][effect_string + player] = False
+            #reset relevent timers
+            if (effect_string + player +'time') in self.state['field']:
+                self.state['field'][effect_string + player +'time'] = 0
+        self.state['field']['twoturnmoveoppnum'] = None
+        return
+
     def request_update(self, message):
         i = 0
         for pokemon_dict in message['request_dict']['side']['pokemon']:
@@ -218,6 +230,10 @@ class DefaultAgent:
                     self.state['player']['active'] = copy.deepcopy(pokemon_state)
                 else:
                     pokemon_state['active'] = False
+                    #if it is not active, make all 'disabled' status False for moves
+                    for move_dict in pokemon_state['moves']:
+                        #if the move is struggle  it has no 'pp' so need this if statement
+                        pokemon_state['moves'][j]['disabled'] =  False
 
 
             #copy the pokemon into the team
@@ -304,6 +320,50 @@ class DefaultAgent:
             raise ValueError("could not find pokemon in opponents team: " + pokemon_string)
         return pokemon_location
 
+    def disable_reset(self, player="opponent"):
+        #resets the disabled status of all moves. 
+        for pokemon_dict_index in self.state[player]['team']:
+            pokemon_dict = self.state[player]['team'][pokemon_dict_index]
+            for move_index in pokemon_dict['moves']:
+                pokemon_dict['moves'][move_index]['disabled'] = False
+        return 
+
+    def handle_minorstartend(self, player ='opponent'):
+        #handle minorstart for confusion induced by moves like outrage ending
+        if player == 'opponent':
+            suffix = 'opp'
+        else:
+            suffix = ''
+        if(message['id'] == 'minorstart'):
+            on_off_switch = True
+        else:
+            #if it is minorend the switch is set to false
+            on_off_switch =False
+        
+        effect_string = message['effect']
+        if (effect_string == 'confusion'):
+            self.state['field']['confusion'+suffix] = on_off_switch
+            self.state['field']['confusion'+suffix+'time'] = 0
+        if (effect_string == 'Substitute'):
+            self.state['field']['sub'+suffix] = on_off_switch
+        if (effect_string == 'Leech Seed'):
+            self.state['field']['seed'+suffix] = 0
+        if (effect_string == 'Disable'):
+            move_string = message['additional_info']
+            pokemon_location = self.get_pokemon_index(pokemon_name)
+            for moveid in self.state['opponent']['team']['moves']:
+                if item_data[game_name_to_dex_name(move_string)] == self.state[player]['team']['moves'][moveid]['id']:
+                    self.state[player]['team']['moves'][moveid]['disabled'] = on_off_switch
+        if (effect_string == 'Encore'):
+            self.state['field']['encore'+suffix] = on_off_switch
+            self.state['field']['encore'+suffix+'time'] = 0
+        if (effect_string == 'move: Taunt'):
+            self.state['field']['taunt'+suffix] = on_off_switch
+            self.state['field']['taunt'+suffix+'time'] = 0
+
+        return
+
+
     def player_specific_update(self, message):
         '''
         extracts the player and pokemon from a pokemon field
@@ -330,6 +390,8 @@ class DefaultAgent:
 
             #dealing with switching
             if message['id'] == 'switch' or message['id'] == "drag":
+
+
                 #first check if the pokemon is in the state yet
                 #retain a list of where Nones are and a value for where the pokemon is
                 pokemon_location = None
@@ -352,7 +414,9 @@ class DefaultAgent:
                 self.state['opponent']['active'] = copy.deepcopy(self.state['opponent']['team'][pokemon_location]) 
                 
                 #if they just switched they cannot have confusion
-                self.state['field']['confusionopp'] = False
+                self.reset_player_field(player='opp')
+                
+                self.disable_reset() #resets all disabled status
 
                 #upon switch reset all the boosts
                 for stat_string in self.state['opponent']['boosts']:
@@ -402,16 +466,11 @@ class DefaultAgent:
                     self.state['opponent']['team'][pokemon_location]['status'] = status_data[status_string]['num']
 
             #handle minorstart for confusion induced by moves like outrage ending
-            if(message['id'] == 'minorstart'):
-                effect_string = message['effect']
-                if (effect_string == 'confusion'):
-                    self.state['field']['confusionopp'] = True
+            if(message['id'] in ['minorstart', 'minorend']):
+                self.handle_minorstart(player='opponent')
+                    
+                #haven't done effect:"typechange" because not got the capacity to reset the type once it switches out
 
-            #handle minorend for confusion
-            if(message['id'] == 'minorend'):
-                effect_string = message['effect']
-                if (effect_string == 'confusion'):
-                    self.state['field']['confusionopp'] = False
 
             #handle curestatus
             if(message['id'] == 'minor_curestatus'):
@@ -455,25 +514,36 @@ class DefaultAgent:
                         self.state['player']['boosts'][stat_string] = -self.state['player']['boosts'][stat_string]
                 if(message['id'] == 'minor_copyboost'):
                     for stat_string in self.state['player']['boosts']:
-                        self.state['player']['boosts'][stat_string] = self.state['opponent']['boosts'][stat_string]
+                        self.state['opponent']['boosts'][stat_string] = self.state['player']['boosts'][stat_string]
+
+            #handle items being used up
+            if(message['id'] == 'minor_enditem'):
+                pokemon_location = self.get_pokemon_index(pokemon_name)
+                self.state['opponent']['pokemon']['item'] = 0
+
+            #handle reveal of items of getting item back
+            if(message['id'] == 'minoritem'):
+                pokemon_location = self.get_pokemon_index(pokemon_name)
+                self.state['opponent']['pokemon']['item'] = items_data[game_name_to_dex_name(message['item'])]['num']
+
 
             #if the pokemon of interest is active, update the active slot
             pokemon_location = self.get_pokemon_index(pokemon_name)
             if self.state['opponent']['team'][pokemon_location]['active']:
                 self.state['opponent']['active'] = copy.deepcopy(self.state['opponent']['team'][pokemon_location])
+
         else:
             #for yourself
-
+                
             #reset some things at switch-in
             #dealing with switching
             if message['id'] == 'switch' or message['id'] == "drag":
 
-                #if they just switched they cannot have confusion
-                self.state['field']['confusion'] = False
-
                 #upon switch reset all the boosts
                 for stat_string in self.state['player']['boosts']:
                     self.state['player']['boosts'][stat_string] = 0
+                #reset information about our players side
+                self.reset_player_field(player='')
 
             #handle boosts
             if(message['id'] in ['minor_boost', 'minor_unboost', 'minor_setboost']):
@@ -506,18 +576,15 @@ class DefaultAgent:
 
 
             #handle minorstart for confusion induced by moves like outrage ending
-            if(message['id'] == 'minorstart'):
-                effect_string = message['effect']
-                if (effect_string == 'confusion'):
-                    self.state['field']['confusion'] = True
+            if(message['id'] in ['minorstart', 'minorend']):
+                self.handle_minorstart(player='player')
 
-            #handle minorend for confusion
-            if(message['id'] == 'minorend'):
-                effect_string = message['effect']
-                if (effect_string == 'confusion'):
-                    self.state['field']['confusion'] = False
+            #if the pokemon of interest is active, update the active slot
+            pokemon_location = self.get_pokemon_index(pokemon_name)
+            if self.state['player']['team'][pokemon_location]['active']:
+                self.state['player']['active'] = copy.deepcopy(self.state['player']['team'][pokemon_location])
 
-        #sort clearallboost and swapboost
+        #sort clearallboost and swapboost which doesn't' target a single player
         if(message['id'] == 'minor_swapboost'):
             for stat_string in message['stats']:
                 temp_value = self.state['opponent']['boosts'][stat_string]
@@ -528,12 +595,13 @@ class DefaultAgent:
                 self.state['opponent']['boosts'][stat_string] = 0
                 self.state['player']['boosts'][stat_string] = 0
 
+        
 
         return
 
     def field_effect_update(self, message):
         if(message['id'] == 'minor_weather'):
-            weather_string = game_name_to_dex_name(message['weather'].lower())
+            weather_string = game_name_to_dex_name(message['weather'])
             if((weather_string != None) and (weather_string != 'none')):
             	self.state['field']['weathertype'] = weather_data[weather_string]['num']
             else:
@@ -544,6 +612,14 @@ class DefaultAgent:
         #handle imputing the ability if the opponent set terain (not really needed)
 
         #handle trick room with minor_field and minor_fieldend
+        #not got terrains from gen 7 in there
+        if(message['id'] in ['minor_fieldstart', 'minor_fieldend']):
+            switch_on_off = (message['id'] == 'minor_fieldstart')
+            field_string = game_name_to_dex_name(message['condition'].split(': ')[1])
+            if((field_string != None) and (field_string != 'none')):
+                if field_string == "trickroom":
+                    self.state['field']['trickroom'] = switch_on_off
+                
 
         #handle confusion with minor_start
         return

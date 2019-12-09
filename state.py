@@ -5,6 +5,7 @@ import copy
 
 # dummy variable to represent tokens
 # each of these have to have an UNK and NON token 
+# if unknown use None, if has no value for this element use 0 (ie item is knocked off)
 pokemon_token = None
 type_token = None 
 move_token = None 
@@ -106,6 +107,8 @@ default_state = {
 		'weathersummoned' : 0,
 		'terrain' : terrain_token,
 		'terrainsummoned' : 0,
+		'trickroom' : False,
+		'terrainsummoned' : 0,
 		'tailwind' : False,
 		'tailwindtime' : 0,
 		'tailwindopp' : False,
@@ -114,6 +117,10 @@ default_state = {
 		'encoretime' : 0,
 		'encoreopp' : False,
 		'encoreopptime' : 0,
+		'seed' : False,
+		'seedopp' : False,
+		'sub' : False,
+		'subopp' : False,
 		'taunt' : False,
 		'taunttime' : 0,
 		'tauntopp' : False,
@@ -123,9 +130,9 @@ default_state = {
 		'tormentopp' : False,
 		'tormentopptime' : 0,
 		'twoturnmove' : False,
-		'twoturnmovenum' : 0, #a move number for the move that is two turns long
+		'twoturnmovenum' : None, #a move number for the move that is two turns long
 		'twoturnmoveopp' : False,
-		'twoturnmoveoppnum' : 0,
+		'twoturnmoveoppnum' : None,
 		'confusion' : False,
 		'confusionopp' : False, 
 	},

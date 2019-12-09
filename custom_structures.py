@@ -56,7 +56,7 @@ MESSAGE = {
 	# Minor actions
 	# had to add ``, additional_info=None` to all since the showdown documentation of the fields
 	# does not perfectly match the information actually received (often get more info by the simulator),
-	'minor_fail' :                dict(id='minor_fail', pokemon=None, action=None, additional_info=None, additional_info2=None),
+	'minor_fail' :                dict(id='minor_fail', pokemon=None, action=None, additional_info=None, additional_info2=None, additional_info3=None),
 	'minor_block' :               dict(id='minor_block', pokemon=None, effect=None, move=None, attacker=None, additional_info=None, additional_info2=None),
 	'minor_notarget' :            dict(id='minor_notarget', pokemon=None, additional_info=None, additional_info2=None),
 	'minor_miss' :                dict(id='minor_miss', source=None, target=None, additional_info=None, additional_info2=None),
