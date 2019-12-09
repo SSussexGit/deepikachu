@@ -350,7 +350,7 @@ class DefaultAgent:
             self.state['field']['seed'+suffix] = 0
         if (effect_string == 'Disable'):
             move_string = message['additional_info']
-            pokemon_location = self.get_pokemon_index(pokemon_name)
+            pokemon_location = self.get_pokemon_index(pokemon_name, player)
             for moveid in self.state['opponent']['team']['moves']:
                 if item_data[game_name_to_dex_name(move_string)] == self.state[player]['team']['moves'][moveid]['id']:
                     self.state[player]['team']['moves'][moveid]['disabled'] = on_off_switch
@@ -519,12 +519,12 @@ class DefaultAgent:
             #handle items being used up
             if(message['id'] == 'minor_enditem'):
                 pokemon_location = self.get_pokemon_index(pokemon_name)
-                self.state['opponent']['pokemon']['item'] = 0
+                self.state['opponent']['team'][pokemon_location]['item'] = 0
 
             #handle reveal of items of getting item back
             if(message['id'] == 'minoritem'):
                 pokemon_location = self.get_pokemon_index(pokemon_name)
-                self.state['opponent']['pokemon']['item'] = items_data[game_name_to_dex_name(message['item'])]['num']
+                self.state['opponent']['team'][pokemon_location]['item'] = items_data[game_name_to_dex_name(message['item'])]['num']
 
 
             #if the pokemon of interest is active, update the active slot
@@ -580,7 +580,7 @@ class DefaultAgent:
                 self.handle_minorstart(player='player')
 
             #if the pokemon of interest is active, update the active slot
-            pokemon_location = self.get_pokemon_index(pokemon_name)
+            pokemon_location = self.get_pokemon_index(pokemon_name, "player")
             if self.state['player']['team'][pokemon_location]['active']:
                 self.state['player']['active'] = copy.deepcopy(self.state['player']['team'][pokemon_location])
 
