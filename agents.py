@@ -154,7 +154,7 @@ class DefaultAgent:
             for key in pokemon_state['stats']:
                 #handle max_hp seperately after because it is given in the condition
                 if key != 'max_hp':
-                    pokemon_state['stats'][key] = pokemon_dict['stats'][key]
+                    pokemon_state['stats'][key] = int(pokemon_dict['stats'][key])
 
             #extract hp, max hp and condition
             #first split on spaces and check length to see if painted or status.
@@ -179,8 +179,8 @@ class DefaultAgent:
             #then split first on '/' to get hp values
             health_values = condition_list[0].split('/')
             if(len(health_values) == 2):
-                pokemon_state['stats']['max_hp'] = health_values[1]
-            pokemon_state['hp'] = health_values[0]
+                pokemon_state['stats']['max_hp'] = int(health_values[1])
+            pokemon_state['hp'] = int(health_values[0])
             
             #set alive status
             if(health_values[0] != '0'):
@@ -295,9 +295,9 @@ class DefaultAgent:
         for key in self.state['opponent']['team'][pokemon_location]['stats']:
             #handle max_hp seperately after because it is given in the condition
             if key == 'max_hp':
-                self.state['opponent']['team'][pokemon_location]['stats'][key] = pokedex_data[game_name_to_dex_name(pokemon_string)]['baseStats']['hp']
+                self.state['opponent']['team'][pokemon_location]['stats'][key] = int(pokedex_data[game_name_to_dex_name(pokemon_string)]['baseStats']['hp'])
             else:
-                self.state['opponent']['team'][pokemon_location]['stats'][key] = pokedex_data[game_name_to_dex_name(pokemon_string)]['baseStats'][key]
+                self.state['opponent']['team'][pokemon_location]['stats'][key] = int(pokedex_data[game_name_to_dex_name(pokemon_string)]['baseStats'][key])
         
         return pokemon_location
 
@@ -404,7 +404,7 @@ class DefaultAgent:
                 #split hp on the space, then on the /
                 hp_condition = message['hp'].split(' ')
                 minmaxhp = hp_condition[0].split('/')
-                self.state['opponent']['team'][pokemon_location]['hp'] = minmaxhp[0]
+                self.state['opponent']['team'][pokemon_location]['hp'] = int(minmaxhp[0])
                 #if it has a status condition get it in there
                 if(len(hp_condition) == 2):
                     if(hp_condition != 'fnt'):
@@ -431,7 +431,7 @@ class DefaultAgent:
                 #split hp on the space, then on the /
                 hp_condition = message['hp'].split(' ')
                 minmaxhp = hp_condition[0].split('/')
-                self.state['opponent']['team'][pokemon_location]['hp'] = minmaxhp[0]
+                self.state['opponent']['team'][pokemon_location]['hp'] = int(minmaxhp[0])
                 #if it has a status condition get it in there
                 if(len(hp_condition) == 2):
                     if(hp_condition != 'fnt'):
@@ -710,7 +710,7 @@ class RandomAgent(DefaultAgent):
             random_action = copy.deepcopy(ACTION['default'])
         else:
             random_action = random.choice(valid_actions)
-
+        print(self.state)
         return PlayerAction(self.id, random_action)
 
 class HumanAgent(DefaultAgent):
