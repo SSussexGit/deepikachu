@@ -146,7 +146,7 @@ class DefaultAgent:
                     pokemon_state['moves'][j]['pp'] = move_data[move_string]['pp']
                 #if the type is not yet set, fill it in
                 if(pokemon_state['moves'][j]['type'] == None):
-                    pokemon_state['moves'][j]['type'] = type_data[move_data[move_string]['type'].lower()]
+                    pokemon_state['moves'][j]['type'] = type_data[move_data[move_string]['type'].lower()]['num']
 
                 j+=1
 
@@ -195,13 +195,13 @@ class DefaultAgent:
             else:   
                 pokemon_state['item'] = item_data[item_string]['num']
             
-            
+
             #extract ability information
             ability_string = pokemon_dict['baseAbility']
             if((ability_string == '') or (ability_string == None)):
-                pokemon_state['ability'] = 0 
+                pokemon_state['baseAbility'] = 0 
             else:   
-                pokemon_state['ability'] = ability_data[ability_string]['num']
+                pokemon_state['baseAbility'] = ability_data[ability_string]['num']
 
 
             #extract type information 
@@ -365,7 +365,6 @@ class DefaultAgent:
             self.state['field']['taunt'+suffix+'time'] = 0
 
         return
-
 
     def player_specific_update(self, message):
         '''
@@ -602,13 +601,25 @@ class DefaultAgent:
 
         return
 
+    def increment_turns(self):
+        for field_element in self.state['field']:
+            split_underscore = field_element.split('_')
+            #if the length is over two means it has a time element
+            if(len(split_underscore) == 2 ):
+                #if the effect is active then increment its time
+                if(self.state['field'][split_underscore[0]] in [False, None]):
+                    self.state['field'][field_element] = 0
+                else:
+                    self.state['field'][field_element] += 1
+
     def field_effect_update(self, message):
         if(message['id'] == 'minor_weather'):
             weather_string = game_name_to_dex_name(message['weather'])
             if((weather_string != None) and (weather_string != 'none')):
-            	self.state['field']['weathertype'] = weather_data[weather_string]['num']
+            	self.state['field']['weather'] = weather_data[weather_string]['num']
             else:
-            	self.state['field']['weathertype'] = None
+            	self.state['field']['weather'] = None
+            self.state['field']['weather_time'] = 0
             #now need to also add in how many turns the weather been up for
         #handle terrains
 
@@ -622,7 +633,28 @@ class DefaultAgent:
             if((field_string != None) and (field_string != 'none')):
                 if field_string == "trickroom":
                     self.state['field']['trickroom'] = switch_on_off
-                
+                    self.state['field']['trickroom_time'] = 0
+
+        #sort out sidestart (entry hazards)
+        if(message['id'] in ['minor_sidestart', 'minor_sideend']):
+            side_string = message['side'].split(':')[0]
+            if(side_string == self.id):
+                suffix = ""
+            else:
+                suffix = "opp"
+            effect_string = game_name_to_dex_name(message['condition'].split(": ")[1])
+            if(effect_string in ["spikes", "toxicspikes"]):
+                if(message['id'] == 'minor_sidestart'):
+                    self.state['field'][effect_string+suffix] += 1
+                else:
+                    self.state['field'][effect_string+suffix] = 0
+            if(effect_string in ['lightscreen', 'reflect', 'tailwind', 'stealthrock']):
+                if(message['id'] == 'minor_sidestart'):
+                    self.state['field'][effect_string+suffix] += True
+                else:
+                    self.state['field'][effect_string+suffix] = False
+                    if(effect_string != "stealthrock"):
+                        self.state['field'][effect_string+'_time'+suffix] = 0
 
         #handle confusion with minor_start
         return
@@ -641,12 +673,13 @@ class DefaultAgent:
             elif('pokemon' in message.message):
                 self.player_specific_update(message.message)
                 pass
+            elif(message.message['id'] == 'turn'):
+                self.increment_turns()
             else:
                 #if it's none of the above it pertains to a field effect
 
                 self.field_effect_update(message.message)
                 #pass
-            
         self.history += messages
 
     def process_request(self, request):
@@ -670,7 +703,6 @@ class RandomAgent(DefaultAgent):
         #update state space
         self.request_update(request.message)
         message = request.message['request_dict']
-        
         #first get our valid action space
         valid_actions = get_valid_actions(self.state, message)
 
