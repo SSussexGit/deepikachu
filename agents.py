@@ -145,8 +145,8 @@ class DefaultAgent:
                     pokemon_state['moves'][j]['maxpp'] = move_data[move_string]['pp']
                     pokemon_state['moves'][j]['pp'] = move_data[move_string]['pp']
                 #if the type is not yet set, fill it in
-                if(pokemon_state['moves'][j]['type'] == type_token):
-                    pokemon_state['moves'][j]['type'] = type_data[move_data[move_string]['type'].lower()]['num']
+                if(pokemon_state['moves'][j]['movetype'] == type_token):
+                    pokemon_state['moves'][j]['movetype'] = type_data[move_data[move_string]['type'].lower()]['num']
 
                 j+=1
 
@@ -207,12 +207,12 @@ class DefaultAgent:
             #extract type information 
             pokemon_type_list = pokedex_data[game_name_to_dex_name(pokemon_name_string)]['types']
 
-            pokemon_state['type1'] = type_data[pokemon_type_list[0].lower()]['num']
+            pokemon_state['pokemontype1'] = type_data[pokemon_type_list[0].lower()]['num']
             #check if the thing has two types
             if(len(pokemon_type_list) == 2):
-                pokemon_state['type2'] = type_data[pokemon_type_list[1].lower()]['num']
+                pokemon_state['pokemontype2'] = type_data[pokemon_type_list[1].lower()]['num']
             else: 
-                pokemon_state['type2'] = type_token
+                pokemon_state['pokemontype2'] = type_token
             
 
             #if active set your active pokemon's details to this
@@ -284,9 +284,9 @@ class DefaultAgent:
             types_list = pokedex_data[game_name_to_dex_name(pokemon_string)]['types']
             
             if(len(types_list)==2):
-                self.state['opponent']['team'][pokemon_location]['type2'] = type_data[types_list[1].lower()]['num']
+                self.state['opponent']['team'][pokemon_location]['pokemontype2'] = type_data[types_list[1].lower()]['num']
             
-            self.state['opponent']['team'][pokemon_location]['type1'] = type_data[types_list[0].lower()]['num']
+            self.state['opponent']['team'][pokemon_location]['pokemontype1'] = type_data[types_list[0].lower()]['num']
 
         #upon switching in or being in team preview the thing must be alive
         self.state['opponent']['team'][pokemon_location]['alive'] = True
@@ -421,8 +421,8 @@ class DefaultAgent:
                 self.disable_reset() #resets all disabled status
 
                 #upon switch reset all the boosts
-                for stat_string in self.state['opponent']['boosts']:
-                    self.state['opponent']['boosts'][stat_string] = 0
+                for stat_string in self.state['player']['boosts']:
+                    self.state['opponent']['boosts']['opp'+stat_string] = 0
 
             #minordamage to update hp
             if message['id'] == 'minordamage' or message['id'] == 'minorheal':
@@ -494,29 +494,29 @@ class DefaultAgent:
                 stat_string = message['stat']
                 amount_int = int(message['amount'])
                 if(message['id'] == 'minor_boost'):
-                    self.state['opponent']['boosts'][stat_string] = min(self.state['opponent']['boosts'][stat_string] + amount_int, 6)
+                    self.state['opponent']['boosts']['opp'+stat_string] = min(self.state['opponent']['boosts']['opp'+stat_string] + amount_int, 6)
                 if(message['id'] == 'minor_unboost'):
-                    self.state['opponent']['boosts'][stat_string] = max(self.state['opponent']['boosts'][stat_string] - amount_int, -6)
+                    self.state['opponent']['boosts']['opp'+stat_string] = max(self.state['opponent']['boosts']['opp'+stat_string] - amount_int, -6)
                 if(message['id'] == 'minor_setboost'):
                     self.state['opponent']['boosts'][stat_string] = amount_int
             if(message['id'] in ['minor_clearboost', 'minor_clearnegativeboost', 'minor_clearpositiveboost', 'minor_invertboost', 'minor_copyboost']):
                 if(message['id'] == 'minor_clearboost'):
-                    for stat_string in self.state['opponent']['boosts']:
-                        self.state['opponent']['boosts'][stat_string] = 0
+                    for stat_string in self.state['player']['boosts']:
+                        self.state['opponent']['boosts']['opp'+stat_string] = 0
                 if(message['id'] == 'minor_clearnegativeboost'):
-                    for stat_string in self.state['opponent']['boosts']:
-                        if self.state['opponent']['boosts'][stat_string] < 0:
-                            self.state['opponent']['boosts'][stat_string] = 0
+                    for stat_string in self.state['player']['boosts']:
+                        if self.state['opponent']['boosts']['opp'+stat_string] < 0:
+                            self.state['opponent']['boosts']['opp'+stat_string] = 0
                 if(message['id'] == 'minor_clearpositiveboost'):
-                    for stat_string in self.state['opponent']['boosts']:
-                        if self.state['opponent']['boosts'][stat_string] < 0:
-                            self.state['opponent']['boosts'][stat_string] = 0
+                    for stat_string in self.state['player']['boosts']:
+                        if self.state['opponent']['boosts']['opp'+stat_string] < 0:
+                            self.state['opponent']['boosts']['opp'+stat_string] = 0
                 if(message['id'] == 'minor_invertboost'):
                     for stat_string in self.state['player']['boosts']:
-                        self.state['player']['boosts'][stat_string] = -self.state['player']['boosts'][stat_string]
+                        self.state['opponent']['boosts']['opp'+stat_string] = -self.state['opponent']['boosts']['opp'+stat_string]
                 if(message['id'] == 'minor_copyboost'):
                     for stat_string in self.state['player']['boosts']:
-                        self.state['opponent']['boosts'][stat_string] = self.state['player']['boosts'][stat_string]
+                        self.state['opponent']['boosts']['opp'+stat_string] = self.state['player']['boosts'][stat_string]
 
             #handle items being used up
             if(message['id'] == 'minor_enditem'):
@@ -574,7 +574,7 @@ class DefaultAgent:
                         self.state['player']['boosts'][stat_string] = -self.state['player']['boosts'][stat_string]
                 if(message['id'] == 'minor_copyboost'):
                     for stat_string in self.state['player']['boosts']:
-                        self.state['player']['boosts'][stat_string] = self.state['opponent']['boosts'][stat_string]
+                        self.state['player']['boosts'][stat_string] = self.state['opponent']['boosts']['opp'+stat_string]
 
 
             #handle minorstart for confusion induced by moves like outrage ending
@@ -590,11 +590,11 @@ class DefaultAgent:
         if(message['id'] == 'minor_swapboost'):
             for stat_string in message['stats']:
                 temp_value = self.state['opponent']['boosts'][stat_string]
-                self.state['opponent']['boosts'][stat_string] = self.state['player']['boosts'][stat_string]
-                self.state['player']['boosts'][stat_string] = self.state['opponent']['boosts'][stat_string]
+                self.state['opponent']['boosts']['opp'+stat_string] = self.state['player']['boosts'][stat_string]
+                self.state['player']['boosts'][stat_string] = self.state['opponent']['boosts']['opp'+stat_string]
         if(message['id'] == 'minor_clearallboost'):
             for stat_string in message['stats']:
-                self.state['opponent']['boosts'][stat_string] = 0
+                self.state['opponent']['boosts']['opp'+stat_string] = 0
                 self.state['player']['boosts'][stat_string] = 0
 
         
@@ -642,7 +642,8 @@ class DefaultAgent:
                 suffix = ""
             else:
                 suffix = "opp"
-            effect_string = game_name_to_dex_name(message['condition'].split(": ")[1])
+            print(game_name_to_dex_name(message['condition'].split(": ")[-1]))
+            effect_string = game_name_to_dex_name(message['condition'].split(": ")[-1]) #always last element is the move name
             if(effect_string in ["spikes", "toxicspikes"]):
                 if(message['id'] == 'minor_sidestart'):
                     self.state['field'][effect_string+suffix] += 1

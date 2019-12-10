@@ -33,18 +33,17 @@ EMPTY = 1
 #to add: damage, priority, physical/special, 
 default_move_state = {
 	'disabled': False,
-	'id': move_token,
+	'moveid': move_token, #change in agent code
 	'maxpp': 0,
 	'pp': 0,
-	'type' : move_type_token,
-	'disabled' : False #can only be disabled if pokemon is active
+	'movetype' : move_type_token,
 }
 
 #to add: weight
 default_pokemon_state = {
 	'pokemon_id' : pokemon_token,
-	'type1' : type_token,
-	'type2' : type_token,
+	'pokemontype1' : type_token,
+	'pokemontype2' : type_token,
 	'active': False, 
 	'baseAbility': ability_token,
 	'condition': EMPTY,
@@ -89,13 +88,13 @@ default_state = {
 	'opponent' : {
 		'active' : copy.deepcopy(default_pokemon_state), # UNK tokens for most things
 		'boosts': {
-			'atk': 0,
-			'def': 0,
-			'spa': 0,
-			'spd': 0,
-			'spe': 0,
-			'accuracy': 0,
-			'evasion': 0},
+			'oppatk': 0,
+			'oppdef': 0,
+			'oppspa': 0,
+			'oppspd': 0,
+			'oppspe': 0,
+			'oppaccuracy': 0,
+			'oppevasion': 0},
 		'team' : {
 			0 : copy.deepcopy(default_pokemon_state),
 			1 : copy.deepcopy(default_pokemon_state),
@@ -133,13 +132,13 @@ default_state = {
 		'tormentopp' : False,
 		'tormentopp_time' : 0,
 		'twoturnmove' : False,
-		'twoturnmovenum' : EMPTY, #a move number for the move that is two turns long
+		'twoturnmoveid' : EMPTY, #a move number for the move that is two turns long
 		'twoturnmoveopp' : False,
-		'twoturnmoveoppnum' : EMPTY,
+		'twoturnmoveoppid' : EMPTY,
 		'confusion' : False,
 		'confusionopp' : False, 
 		'spikes' : 0, #int from 0 to 3 inclusive
-		'spiesopp' : 0, 
+		'spikesopp' : 0, 
 		'toxicspikes' : 0, #int from 0 to 2 inclusive
 		'toxicspikesopp' : 0, 
 		'stealthrock' : False, 
