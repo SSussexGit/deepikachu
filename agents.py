@@ -114,7 +114,7 @@ class DefaultAgent:
             #reset relevent timers
             if (effect_string + player +'time') in self.state['field']:
                 self.state['field'][effect_string + player +'time'] = 0
-        self.state['field']['twoturnmoveoppnum'] = None
+        self.state['field']['twoturnmoveoppnum'] = EMPTY
         return
 
     def request_update(self, message):
@@ -145,7 +145,7 @@ class DefaultAgent:
                     pokemon_state['moves'][j]['maxpp'] = move_data[move_string]['pp']
                     pokemon_state['moves'][j]['pp'] = move_data[move_string]['pp']
                 #if the type is not yet set, fill it in
-                if(pokemon_state['moves'][j]['type'] == None):
+                if(pokemon_state['moves'][j]['type'] == type_token):
                     pokemon_state['moves'][j]['type'] = type_data[move_data[move_string]['type'].lower()]['num']
 
                 j+=1
@@ -198,8 +198,8 @@ class DefaultAgent:
 
             #extract ability information
             ability_string = pokemon_dict['baseAbility']
-            if((ability_string == '') or (ability_string == None)):
-                pokemon_state['baseAbility'] = 0 
+            if((ability_string == '') or (ability_string == ability_token)):
+                pokemon_state['baseAbility'] = EMPTY
             else:   
                 pokemon_state['baseAbility'] = ability_data[ability_string]['num']
 
@@ -212,7 +212,7 @@ class DefaultAgent:
             if(len(pokemon_type_list) == 2):
                 pokemon_state['type2'] = type_data[pokemon_type_list[1].lower()]['num']
             else: 
-                pokemon_state['type2'] = None
+                pokemon_state['type2'] = type_token
             
 
             #if active set your active pokemon's details to this
@@ -264,7 +264,7 @@ class DefaultAgent:
             pokemon_dict = copy.deepcopy(self.state['opponent']['team'][pokemon_dict_index])
             if(pokemon_dict['pokemon_id'] == pokedex_data[game_name_to_dex_name(pokemon_string)]['num']):
                 pokemon_location = pokemon_dict_index
-            if(pokemon_dict['pokemon_id'] == None):
+            if(pokemon_dict['pokemon_id'] == pokemon_token):
                 none_list.append(pokemon_dict_index)
             #make all the active status false
             self.state['opponent']['team'][pokemon_dict_index]['active'] = False
@@ -317,7 +317,7 @@ class DefaultAgent:
             pokemon_dict = copy.deepcopy(self.state[player]['team'][pokemon_dict_index])
             if(pokemon_dict['pokemon_id'] == pokedex_data[game_name_to_dex_name(pokemon_string)]['num']):
                 pokemon_location = pokemon_dict_index
-            if(pokemon_dict['pokemon_id'] == None):
+            if(pokemon_dict['pokemon_id'] == pokemon_token):
                 none_list.append(pokemon_dict_index)
         if(pokemon_location == None):
             raise ValueError("could not find pokemon in opponents team: " + pokemon_string)
@@ -410,7 +410,7 @@ class DefaultAgent:
                     if(hp_condition != 'fnt'):
                         self.state['opponent']['team'][pokemon_location]['condition'] = hp_condition[1]
                 else: 
-                    self.state['opponent']['team'][pokemon_location]['condition'] = None
+                    self.state['opponent']['team'][pokemon_location]['condition'] = EMPTY
 
                 #copy into the active slot since it was switched in
                 self.state['opponent']['active'] = copy.deepcopy(self.state['opponent']['team'][pokemon_location]) 
@@ -437,7 +437,7 @@ class DefaultAgent:
                     if(hp_condition != 'fnt'):
                         self.state['opponent']['team'][pokemon_location]['condition'] = hp_condition[1]
                 else: 
-                    self.state['opponent']['team'][pokemon_location]['condition'] = None
+                    self.state['opponent']['team'][pokemon_location]['condition'] = EMPTY
 
                 if(message['id'] == 'minorheal'):
                     if('move' in message):
@@ -481,12 +481,12 @@ class DefaultAgent:
                 if (status_string == 'confusion'):
                     self.state['field']['confusionopp'] = False
                 else:
-                    self.state['opponent']['team'][pokemon_location]['status'] = None
+                    self.state['opponent']['team'][pokemon_location]['status'] = EMPTY
 
             #handle cureteam which heals status of whole team
             if(message['id'] == 'minor_curestatus'):
                 for pokemon_index in self.state['opponent']['team']:
-                    self.state['opponent']['team'][pokemon_index]['status'] = None
+                    self.state['opponent']['team'][pokemon_index]['status'] = EMPTY
 
             #handles boosts
             if(message['id'] in ['minor_boost', 'minor_unboost', 'minor_setboost']):
@@ -607,7 +607,7 @@ class DefaultAgent:
             #if the length is over two means it has a time element
             if(len(split_underscore) == 2 ):
                 #if the effect is active then increment its time
-                if(self.state['field'][split_underscore[0]] in [False, None]):
+                if(self.state['field'][split_underscore[0]] in [False, EMPTY]):
                     self.state['field'][field_element] = 0
                 else:
                     self.state['field'][field_element] += 1
@@ -615,10 +615,10 @@ class DefaultAgent:
     def field_effect_update(self, message):
         if(message['id'] == 'minor_weather'):
             weather_string = game_name_to_dex_name(message['weather'])
-            if((weather_string != None) and (weather_string != 'none')):
+            if((weather_string != EMPTY) and (weather_string != 'none')):
             	self.state['field']['weather'] = weather_data[weather_string]['num']
             else:
-            	self.state['field']['weather'] = None
+            	self.state['field']['weather'] = EMPTY
             self.state['field']['weather_time'] = 0
             #now need to also add in how many turns the weather been up for
         #handle terrains
@@ -677,7 +677,6 @@ class DefaultAgent:
                 self.increment_turns()
             else:
                 #if it's none of the above it pertains to a field effect
-
                 self.field_effect_update(message.message)
                 #pass
         self.history += messages

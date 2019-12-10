@@ -27,7 +27,7 @@ for key in conditions:
 
 terrains = ["electric", "psychic", "grassy", "mystic"]
 terrain_data = {}
-k = 1
+k = 0
 for terrain in terrains:
 	terrain_data[terrain+"terrain"] = {"num":k}
 	k+=1
@@ -42,5 +42,10 @@ for type_string in type_list:
 	i+=1
 
 
-
-
+#add in a loop for each dictionary that makes everything 2 indexed
+for data_dict in [pokedex_data, ability_data, move_data, item_data, type_data, terrain_data, weather_data, status_data]:
+	max_token = 0
+	for element in data_dict:
+		data_dict[element]['num'] += 2
+		max_token = max(max_token, data_dict[element]['num'])
+	print(max_token)

@@ -5,16 +5,19 @@ import copy
 
 # dummy variable to represent tokens
 # each of these have to have an UNK and NON token 
-# if unknown use None, if has no value for this element use 0 (ie item is knocked off)
-pokemon_token = None
-type_token = None 
-move_token = None 
-move_type_token = None 
-ability_token = None 
-item_token = None 
-weather_token = None
-terrain_token = None
-condition_token = None
+#0 means unknown. 1 means known but empty
+pokemon_token = 0
+type_token =  0 
+move_token = 0 
+move_type_token = 0 
+ability_token = 0 
+item_token = 0 
+weather_token = 0
+terrain_token = 0
+condition_token = 0
+twoturnnum_token = 0
+
+EMPTY = 1
 
 # Next
 # write function (used inside agent): game messages -> state
@@ -44,7 +47,7 @@ default_pokemon_state = {
 	'type2' : type_token,
 	'active': False, 
 	'baseAbility': ability_token,
-	'condition': condition_token,
+	'condition': EMPTY,
 	'alive' : False,
 	'hp': 0, 
 	'level': 100,
@@ -71,8 +74,8 @@ default_state = {
 			'def': 0,
 			'spa': 0,
 			'spd': 0,
-			'spe': 0,
-			'accuracy': 0,
+			'spe': 0, #just use the base stat with modifier applied. Also keep these as catagoricals
+			'accuracy': 0, #XKCD we map to the modified
 			'evasion': 0},
 		'team' : {
 			0 : copy.deepcopy(default_pokemon_state),
@@ -103,9 +106,9 @@ default_state = {
 		}
 	},
 	'field' : {
-		'weather' : weather_token,
+		'weather' : EMPTY,
 		'weather_time' : 0,
-		'terrain' : terrain_token,
+		'terrain' : EMPTY,
 		'terrain_time' : 0,
 		'trickroom' : False,
 		'trickroom_time' : 0, 
@@ -130,9 +133,9 @@ default_state = {
 		'tormentopp' : False,
 		'tormentopp_time' : 0,
 		'twoturnmove' : False,
-		'twoturnmovenum' : None, #a move number for the move that is two turns long
+		'twoturnmovenum' : EMPTY, #a move number for the move that is two turns long
 		'twoturnmoveopp' : False,
-		'twoturnmoveoppnum' : None,
+		'twoturnmoveoppnum' : EMPTY,
 		'confusion' : False,
 		'confusionopp' : False, 
 		'spikes' : 0, #int from 0 to 3 inclusive
