@@ -191,13 +191,16 @@ class LearningAgent(VPGBuffer, DefaultAgent):
             value = 0
             logp = np.log(1/min(1, len(valid_actions)))
         else:
-            #compute the value given state and store in buffer
             if (valid_actions == []):
                 action = copy.deepcopy(ACTION['default'])
+            else:
+                action = random.choice(valid_actions)
+            #compute the value given state
+            value = 0
 
             #save logpaction in buffer (not really needed since it gets recomputed)
+            logp = np.log(1/min(1, len(valid_actions)))
 
-        #save action 
 
         self.store_in_buffer(self.state, action, value, logp, valid_actions)
         
