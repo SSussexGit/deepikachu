@@ -607,10 +607,16 @@ class DefaultAgent:
             #if the length is over two means it has a time element
             if(len(split_underscore) == 2 ):
                 #if the effect is active then increment its time
-                if(self.state['field'][split_underscore[0]] in [False, EMPTY]):
-                    self.state['field'][field_element] = 0
+                if(split_underscore[0] in ["weather", "terrain"]):
+                    if(self.state['field'][split_underscore[0]] == EMPTY):
+                        self.state['field'][field_element] = 0
+                    else:
+                        self.state['field'][field_element] += 1
                 else:
-                    self.state['field'][field_element] += 1
+                    if(self.state['field'][split_underscore[0]] == False):
+                        self.state['field'][field_element] = 0
+                    else:
+                        self.state['field'][field_element] += 1
 
     def field_effect_update(self, message):
         if(message['id'] == 'minor_weather'):
@@ -619,8 +625,9 @@ class DefaultAgent:
             	self.state['field']['weather'] = weather_data[weather_string]['num']
             else:
             	self.state['field']['weather'] = EMPTY
-            self.state['field']['weather_time'] = 0
-            #now need to also add in how many turns the weather been up for
+            if(message['from_ability'] != '[upkeep]'):
+                #reset the time unless it is just an ability keeping the weather going from before
+                self.state['field']['weather_time'] = 0
         #handle terrains
 
         #handle imputing the ability if the opponent set terain (not really needed)
@@ -655,7 +662,7 @@ class DefaultAgent:
                 else:
                     self.state['field'][effect_string+suffix] = False
                     if(effect_string != "stealthrock"):
-                        self.state['field'][effect_string+'_time'+suffix] = 0
+                        self.state['field'][effect_string+suffix+'_time'] = 0
 
         #handle confusion with minor_start
         return

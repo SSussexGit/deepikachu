@@ -71,6 +71,17 @@ class VPGBuffer:
         self.ptr_start = self.ptr
         return
 
+    def recurse_cut_state(self, state_buffer):
+        '''
+        stores a state in buffer recursively
+        '''
+        for field in state_buffer:
+            if (isinstance(state_buffer[field], dict)):
+                state_buffer[field] = self.recurse_cut_state(state_buffer[field])
+            else:
+                state_buffer[field] = state_buffer[field][0:self.ptr]
+        return state_buffer
+
     def get(self):
         '''
         Call after a batch to normalize the advantages and return the data needed for network updates
@@ -79,8 +90,8 @@ class VPGBuffer:
         adv_mean = np.mean(self.adv_buffer)
         adv_std = np.std(self.adv_buffer)
         self.adv_buffer = (self.adv_buffer - adv_mean) / adv_std
-        return [self.state_buffer, self.action_buffer, self.adv_buffer, 
-                self.rtg_buffer, self.logp_buffer]
+        return [self.recurse_cut_state(self.state_buffer), self.action_buffer[:self.ptr], self.adv_buffer[:self.ptr], 
+                self.rtg_buffer[:self.ptr], self.logp_buffer[:self.ptr]]
 
     def empty_buffer(self):
         self.state_buffer = create_2D_state(self.buffer_size)
@@ -265,7 +276,7 @@ if __name__ == '__main__':
             p1.end_traj()
     
         states, actions, advs, rtgs, logps = p1.get()
-
+        
         #policy step
 
         #value_step
