@@ -48,4 +48,4 @@ for data_dict in [pokedex_data, ability_data, move_data, item_data, type_data, t
 	for element in data_dict:
 		data_dict[element]['num'] += 2
 		max_token = max(max_token, data_dict[element]['num'])
-	print(max_token)
+	#print(max_token)

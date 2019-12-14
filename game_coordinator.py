@@ -12,6 +12,8 @@ import teams_data
 from custom_structures import *
 from agents import *
 
+import training
+
 # TO RUN: python game_coordinator.py -p1 default -p2 default
 
 
@@ -38,7 +40,7 @@ sys.stdin.readline():
 '''
 
 
-def parse_simulator_message(raw):
+def parse_simulator_message(simulator, raw):
     '''
     Parses the string of one full message by the simulator 
     Returns a list of SimulatorMessage objects, one object ``for every`` message 
@@ -138,7 +140,7 @@ def parse_simulator_message(raw):
 
     return message_objects
 
-def receive_simulator_message():
+def receive_simulator_message(simulator):
     '''
     Live receives one full message by the simulator (ending with '\n\n')
     Return list of SimulatorMessage objects corresponding to full message string
@@ -149,7 +151,7 @@ def receive_simulator_message():
         if (line == '\n'):
             break
         raw_message.append(line)
-    messages = parse_simulator_message(raw_message)
+    messages = parse_simulator_message(simulator, raw_message)
     return messages
 
 def filter_messages_by_player(player, messages):
@@ -172,7 +174,7 @@ def filter_messages_by_id(id, messages):
             id_messages.append(m)
     return id_messages
 
-def retrieve_message_ids_set(messages):
+def retrieve_message_ids_set(simulator, messages):
     '''
     Returns set of all message ids in list of SimulatorMessages
     '''
@@ -181,7 +183,7 @@ def retrieve_message_ids_set(messages):
         ids.add(m.message['id'])
     return list(ids)
 
-def retrieve_message_ids_list(messages):
+def retrieve_message_ids_list(simulator, messages):
     '''
     Returns list of all message ids in list of SimulatorMessages
     '''
@@ -201,7 +203,7 @@ def get_player_request(player, messages):
             request.append(m.message)
     return request
 
-def send_choice_to_simulator(player_action):
+def send_choice_to_simulator(simulator, player_action):
     '''
     Sends PlayerAction made by a player to the simulator
     '''
@@ -284,6 +286,116 @@ def create_agents_from_argv(args):
     print('Player 2:  ' + infos[1])
     return tuple(out)
 
+
+def run_learning_episode(p1_agent, p2_agent):
+    '''
+    takes in 2 agents and plays a game between them
+    '''
+
+    player1 = p1_agent
+    player2 = p2_agent
+
+    # opens: pokemon-showdown simulate-battle
+    simulator = subprocess.Popen('./pokemon-showdown simulate-battle', 
+        shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        universal_newlines=True)
+
+    # start game 
+    # simulator.stdin.write('>start {"formatid":"gen5randombattle"}\n')
+    simulator.stdin.write('>start {"formatid":"gen5ou"}\n')
+    #simulator.stdin.write('>player p1 {"name":"' + player1.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
+    #simulator.stdin.write('>player p2 {"name":"' + player2.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
+    simulator.stdin.write('>player p1 {"name":"' + player1.name + '" }\n')
+    simulator.stdin.write('>player p2 {"name":"' + player2.name +'" }\n')
+    
+    simulator.stdin.flush() 
+
+    game = []
+
+    outstanding_requests = []
+
+    # regular game flow
+    while True:
+    
+        # receive a simulation update and inform players
+        new_messages = receive_simulator_message(simulator)
+        message_ids = retrieve_message_ids_set(simulator, new_messages)
+        game += new_messages
+        
+        # for m in new_messages:
+        #     if not m.message['id'] == 'request':
+        #         print(m.original_str)
+        #     else:
+        #         pprint.pprint(m.message['request_dict'])
+        # for m in new_messages:
+        #     if m.message['id'] == 'error':
+        #         print(m.original_str)
+
+
+        # if at least one player is human print all messages (except requests)
+        if isinstance(player1, HumanAgent):
+            for m in filter_messages_by_player('p1', new_messages):
+                if not m.message['id'] == 'request':
+                    print(m.original_str)
+        if isinstance(player2, HumanAgent):
+            for m in filter_messages_by_player('p2', new_messages):
+                if not m.message['id'] == 'request':
+                    print(m.original_str)
+
+        # check if game is over    
+        if 'win' in message_ids:
+            break
+
+        # if there are requests, record them
+        if 'request' in message_ids: 
+            outstanding_requests += filter_messages_by_id('request', new_messages)
+        
+        # regular messages f this was a normal update, then send updates to players, and afterwards request move
+        else:
+            
+            # 1) update players on new information
+            player1.receive_game_update(filter_messages_by_player('p1', new_messages))
+            player2.receive_game_update(filter_messages_by_player('p2', new_messages))
+
+            # 2) request outstanding moves
+            while outstanding_requests:
+                m_request = outstanding_requests.pop(0)
+                player = m_request.adressed_players
+                if len(player) != 1:
+                    raise ValueError('requests should only be addressed to one player')
+                else:
+                    player = player[0]
+
+                # only request an action if request is not 'wait' request
+                # (requesting move ('active') or switch ('forceSwitch') or team ('teamPreview'))
+                if not 'wait' in m_request.message['request_dict'].keys():
+                    if player == 'p1':
+                        action = player1.process_request(m_request)
+                    else:
+                        action = player2.process_request(m_request)
+
+                    send_choice_to_simulator(simulator, action)
+            
+
+    # print results
+    game_over_message = filter_messages_by_id('win', game)[0]
+    winner_string = game_over_message.message['info_json']['winner']
+    if(winner_string == player1.name):
+        player1.won_game()
+    if(winner_string == player2.name):
+        player2.won_game()
+    #get the winning agent and set their reward based on the result
+
+    # pprint.pprint(game_over_message.message['info_json'])
+    #print(game_over_message.message['info_json'])
+
+    # terminate game
+    simulator.terminate()
+    simulator.stdin.close()
+    return
+
 if __name__ == '__main__':
 
     '''
@@ -294,7 +406,7 @@ if __name__ == '__main__':
     '''
 
     # parse arguments and initialize players
-    SIMS = 100
+    SIMS = 1
     for i in range(0, SIMS):
         print(f'Simulation # {i+1}/{SIMS}')
 
@@ -325,8 +437,8 @@ if __name__ == '__main__':
         while True:
         
             # receive a simulation update and inform players
-            new_messages = receive_simulator_message()
-            message_ids = retrieve_message_ids_set(new_messages)
+            new_messages = receive_simulator_message(simulator)
+            message_ids = retrieve_message_ids_set(simulator, new_messages)
             game += new_messages
             
             # for m in new_messages:
@@ -381,11 +493,12 @@ if __name__ == '__main__':
                         else:
                             action = player2.process_request(m_request)
 
-                        send_choice_to_simulator(action)
+                        send_choice_to_simulator(simulator, action)
                 
 
         # print results
         game_over_message = filter_messages_by_id('win', game)[0]
+        
         # pprint.pprint(game_over_message.message['info_json'])
         #print(game_over_message.message['info_json'])
 

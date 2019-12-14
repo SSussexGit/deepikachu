@@ -642,7 +642,7 @@ class DefaultAgent:
                 suffix = ""
             else:
                 suffix = "opp"
-            print(game_name_to_dex_name(message['condition'].split(": ")[-1]))
+            
             effect_string = game_name_to_dex_name(message['condition'].split(": ")[-1]) #always last element is the move name
             if(effect_string in ["spikes", "toxicspikes"]):
                 if(message['id'] == 'minor_sidestart'):
@@ -692,6 +692,16 @@ class DefaultAgent:
         choice = copy.deepcopy(ACTION['default'])
         return PlayerAction(self.id, choice)
 
+    def clear_history(self):
+        '''
+        Can be called to clear the history
+        '''
+
+    def won_game(self):
+        '''
+        A function called if you win the game
+        '''
+
 class RandomAgent(DefaultAgent):
     '''
     Class implementing player choosing random (valid) moves
@@ -710,7 +720,7 @@ class RandomAgent(DefaultAgent):
             random_action = copy.deepcopy(ACTION['default'])
         else:
             random_action = random.choice(valid_actions)
-        print(self.state)
+        
         return PlayerAction(self.id, random_action)
 
 class HumanAgent(DefaultAgent):
