@@ -394,7 +394,7 @@ def run_learning_episode(p1_agent, p2_agent):
     # terminate game
     simulator.terminate()
     simulator.stdin.close()
-    return
+    return winner_string
 
 if __name__ == '__main__':
 

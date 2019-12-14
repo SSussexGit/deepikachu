@@ -19,10 +19,19 @@ from custom_structures import *
 from state import *
 from data_pokemon import *
 
-EPOCHS = 30
+EPOCHS = 2 #30
 MAX_GAME_LEN = 400 #max length is 200 but if you u-turn every turn you move twice per turn
-BATCH_SIZE = 100
-ACTION_SPACE_SIZE = 9
+BATCH_SIZE = 2 #100
+ACTION_SPACE_SIZE = 10 #4 moves and 6 switches
+
+def action_to_int(action):
+    if(action['id'] == 'move'):
+        return int(action['movespec'])-1
+    elif(action['id'] == 'team'):
+        return int(action['teamspec'])+3
+    #it must be a switch otherwise
+    return int(action['switchspec'])+3
+
 
 #torch.set_default_dtype(torch.float64)
 class VPGBuffer:
@@ -31,7 +40,7 @@ class VPGBuffer:
     """
     def _init_(self, size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95):
         self.buffer_size = size
-        self.state_buffer = {}
+        self.state_buffer = create_2D_state(self.buffer_size)
         self.action_buffer = np.zeros(self.buffer_size, dtype=int) #won't overflow since max number is >> possible length
         self.adv_buffer = np.zeros(self.buffer_size, dtype=np.float32)
         self.rew_buffer = np.zeros(self.buffer_size, dtype=np.float32)
@@ -49,15 +58,15 @@ class VPGBuffer:
         Call at the end of an episode to update buffers with rewards to go and advantage
         '''
         path_slice = slice(self.ptr_start, self.ptr)
-        rews = self.rew_buffer[path_slice]
-        vals = self.val_buffer[path_size]
+        rews = np.append(self.rew_buffer[path_slice], 0) #0 added so the sizing works out
+        vals = np.append(self.val_buffer[path_slice], 0)
 
         #compute GAE advantage
         deltas = rews[:-1] + self.gamma * vals[1:] - vals[:-1]
         self.adv_buffer[path_slice] = training_helpers.discount_cumsum(deltas, self.gamma * self.lam)
 
         #compute rewards-to-go
-        self.ret_buffer[path_slice] = training_helpers.discount_cumsum(rews, self.gamma)[:-1]
+        self.rtg_buffer[path_slice] = training_helpers.discount_cumsum(rews, self.gamma)[:-1]
 
         self.ptr_start = self.ptr
         return
@@ -70,8 +79,22 @@ class VPGBuffer:
         adv_mean = np.mean(self.adv_buffer)
         adv_std = np.std(self.adv_buffer)
         self.adv_buffer = (self.adv_buffer - adv_mean) / adv_std
-        return [self.state_buffer, self.act_buffer, self.adv_buffer, 
+        return [self.state_buffer, self.action_buffer, self.adv_buffer, 
                 self.rtg_buffer, self.logp_buffer]
+
+    def empty_buffer(self):
+        self.state_buffer = create_2D_state(self.buffer_size)
+        self.action_buffer = np.zeros(self.buffer_size, dtype=int) 
+        self.adv_buffer = np.zeros(self.buffer_size, dtype=np.float32)
+        self.rew_buffer = np.zeros(self.buffer_size, dtype=np.float32)
+        self.rtg_buffer = np.zeros(self.buffer_size, dtype=np.float32) 
+        self.val_buffer = np.zeros(self.buffer_size, dtype=np.float32) 
+        self.logp_buffer = np.zeros(self.buffer_size, dtype=np.float32) 
+        self.total_tuples = 0 
+        self.ptr_start = 0 
+        self.ptr = 0 
+        return 
+
 
 class LearningAgent(VPGBuffer, DefaultAgent):
     '''
@@ -84,7 +107,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
         self.state = copy.deepcopy(default_state)
 
         self.buffer_size = size
-        self.state_buffer = {}
+        self.state_buffer = create_2D_state(self.buffer_size)
         self.action_buffer = np.zeros(self.buffer_size, dtype=int) #won't overflow since max number is >> possible length
         self.adv_buffer = np.zeros(self.buffer_size, dtype=np.float32)
         self.rew_buffer = np.zeros(self.buffer_size, dtype=np.float32)
@@ -105,16 +128,44 @@ class LearningAgent(VPGBuffer, DefaultAgent):
             self.policy = None
             self.value_fun = None
 
-    def store_in_buffer(self):
+    def recurse_store_state(self, state_buffer, state):
+        '''
+        stores a state in buffer recursively
+        '''
+        for field in state:
+            if (isinstance(state[field], dict)):
+                state_buffer[field] = self.recurse_store_state(state_buffer[field], state[field])
+            else:
+                state_buffer[field][self.ptr] = state[field]
+        return state_buffer
+
+
+    def store_in_buffer(self, state, action, value, logp, valid_actions):
         '''
         Stores everything in the buffer and increments the pointer
         '''
 
         #leave rewards as all 0 then impute later in the win function
 
+        self.state_buffer = self.recurse_store_state(self.state_buffer, self.state)
+
+        self.action_buffer[self.ptr] = action_to_int(action)
+
+        self.val_buffer[self.ptr] = value
+
+        self.logp_buffer[self.ptr] = logp
+
+        #self.valid_actions[self.ptr] 
+        for option in valid_actions:
+            self.valid_actions_buffer[self.ptr, action_to_int(option)] = 1
+
+
+        self.ptr+=1
+        return
+
     def won_game(self):
         '''
-        sets reward of to 1 in the buffer
+        sets this time's reward to 1 in the buffer
         '''
         assert(self.ptr > 0) #you can't win before taking an action 
         self.rew_buffer[self.ptr-1] = 1 
@@ -132,12 +183,13 @@ class LearningAgent(VPGBuffer, DefaultAgent):
         #first get our valid action space
         valid_actions = get_valid_actions(self.state, message)
 
-
         if(self.policy == None):
             if (valid_actions == []):
                 action = copy.deepcopy(ACTION['default'])
             else:
                 action = random.choice(valid_actions)
+            value = 0
+            logp = np.log(1/min(1, len(valid_actions)))
         else:
             #compute the value given state and store in buffer
             if (valid_actions == []):
@@ -147,8 +199,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
 
         #save action 
 
-        #increment pointer
-        self.ptr+=1
+        self.store_in_buffer(self.state, action, value, logp, valid_actions)
         
         return PlayerAction(self.id, action)
 
@@ -202,9 +253,24 @@ if __name__ == '__main__':
     '''
     p1 = LearningAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, networks=None)
     p2 = RandomAgent(id='p2', name='Blue')
-    game_coordinator.run_learning_episode(p1, p2)
-    print(p1.ptr)
-    print(np.sum(p1.rew_buffer))
+    for i in range(EPOCHS):
+        for j in range(BATCH_SIZE):
+            game_coordinator.run_learning_episode(p1, p2)
+            p1.clear_history()
+            p2.clear_history()
+
+            p1.end_traj()
+    
+        states, actions, advs, rtgs, logps = p1.get()
+
+        #policy step
+
+        #value_step
+
+        win_rate = np.sum(p1.rew_buffer/ BATCH_SIZE)
+        print("BATCH " + str(i))
+        print('Win rate: ' + str(win_rate))
+        p1.empty_buffer()
 
 
 

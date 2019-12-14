@@ -114,7 +114,7 @@ class DefaultAgent:
             #reset relevent timers
             if (effect_string + player +'time') in self.state['field']:
                 self.state['field'][effect_string + player +'time'] = 0
-        self.state['field']['twoturnmoveoppnum'] = EMPTY
+        self.state['field']['twoturnmoveoppid'] = EMPTY
         return
 
     def request_update(self, message):
@@ -139,7 +139,7 @@ class DefaultAgent:
                 #if(move_string.startswith("hiddenpower")):
                     #move_string = move_string[0:-1]#include all but the number (only need in gen7)
                     #print(move_string)
-                pokemon_state['moves'][j]['id'] = move_data[move_string]['num']
+                pokemon_state['moves'][j]['moveid'] = move_data[move_string]['num']
                 #if the max pp of the move is 0 in state, it is turn 0 so set the max pp and then pp = max pp
                 if(pokemon_state['moves'][j]['maxpp'] == 0):
                     pokemon_state['moves'][j]['maxpp'] = move_data[move_string]['pp']
@@ -408,7 +408,7 @@ class DefaultAgent:
                 #if it has a status condition get it in there
                 if(len(hp_condition) == 2):
                     if(hp_condition != 'fnt'):
-                        self.state['opponent']['team'][pokemon_location]['condition'] = hp_condition[1]
+                        self.state['opponent']['team'][pokemon_location]['condition'] = status_data[game_name_to_dex_name(hp_condition[1])]['num']
                 else: 
                     self.state['opponent']['team'][pokemon_location]['condition'] = EMPTY
 
@@ -435,7 +435,7 @@ class DefaultAgent:
                 #if it has a status condition get it in there
                 if(len(hp_condition) == 2):
                     if(hp_condition != 'fnt'):
-                        self.state['opponent']['team'][pokemon_location]['condition'] = hp_condition[1]
+                        self.state['opponent']['team'][pokemon_location]['condition'] = status_data[game_name_to_dex_name(hp_condition[1])]['num']
                 else: 
                     self.state['opponent']['team'][pokemon_location]['condition'] = EMPTY
 
@@ -465,7 +465,7 @@ class DefaultAgent:
                 if (status_string == 'confusion'):
                     self.state['field']['confusionopp'] = True
                 else:
-                    self.state['opponent']['team'][pokemon_location]['status'] = status_data[status_string]['num']
+                    self.state['opponent']['team'][pokemon_location]['condition'] = status_data[status_string]['num']
 
             #handle minorstart for confusion induced by moves like outrage ending
             if(message['id'] in ['minorstart', 'minorend']):
@@ -481,12 +481,12 @@ class DefaultAgent:
                 if (status_string == 'confusion'):
                     self.state['field']['confusionopp'] = False
                 else:
-                    self.state['opponent']['team'][pokemon_location]['status'] = EMPTY
+                    self.state['opponent']['team'][pokemon_location]['condition'] = EMPTY
 
             #handle cureteam which heals status of whole team
             if(message['id'] == 'minor_curestatus'):
                 for pokemon_index in self.state['opponent']['team']:
-                    self.state['opponent']['team'][pokemon_index]['status'] = EMPTY
+                    self.state['opponent']['team'][pokemon_index]['condition'] = EMPTY
 
             #handles boosts
             if(message['id'] in ['minor_boost', 'minor_unboost', 'minor_setboost']):
@@ -696,11 +696,15 @@ class DefaultAgent:
         '''
         Can be called to clear the history
         '''
+        self.history = []
+        self.state = copy.deepcopy(default_state)
+        return
 
     def won_game(self):
         '''
         A function called if you win the game
         '''
+        return
 
 class RandomAgent(DefaultAgent):
     '''
