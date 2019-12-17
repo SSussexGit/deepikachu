@@ -155,6 +155,17 @@ class LearningAgent(VPGBuffer, DefaultAgent):
                 state_buffer[field][self.ptr] = state[field]
         return state_buffer
 
+    def construct_np_state_from_python_state(self, np_state, state):
+        '''
+        stores a state in buffer recursively
+        '''
+        for field in state:
+            if (isinstance(state[field], dict)):
+                np_state[field] = self.construct_np_state_from_python_state(np_state[field], state[field])
+            else:
+                np_state[field][0] = state[field]
+        return np_state
+
 
     def store_in_buffer(self, state, action, value, logp, valid_actions):
         '''
@@ -211,7 +222,9 @@ class LearningAgent(VPGBuffer, DefaultAgent):
                 value = 0
                 action = copy.deepcopy(ACTION['default'])
             else:
-                policy_tensor, value_tensor = self.network(copy.deepcopy(self.state))
+                np_state = create_2D_state() #initialize an empty np state to update
+                np_state = self.construct_np_state_from_python_state(np_state, self.state)
+                policy_tensor, value_tensor = self.network(np_state)
                 value = value_tensor[0]
                 action = random.choice(valid_actions)
                 for valid_action in valid_actions:
