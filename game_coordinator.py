@@ -324,9 +324,9 @@ def run_learning_episode(p1_agent, p2_agent):
         message_ids = retrieve_message_ids_set(simulator, new_messages)
         game += new_messages
         
-        for m in new_messages:
-            if not m.message['id'] == 'request':
-                print(m.original_str)
+        # for m in new_messages:
+        #     if not m.message['id'] == 'request':
+        #         print(m.original_str)
         #     else:
         #         pprint.pprint(m.message['request_dict'])
         # for m in new_messages:

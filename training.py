@@ -10,7 +10,10 @@ import json
 import random
 import training_helpers
 import numpy as np
-#import torch
+import torch
+import torch.optim as optim
+import torch.nn as nn
+import torch.nn.functional as F
 import game_coordinator
 from agents import *
 
@@ -59,6 +62,7 @@ class VPGBuffer:
         self.rtg_buffer = np.zeros(self.buffer_size, dtype=np.float32) #the rewards-to-go
         self.val_buffer = np.zeros(self.buffer_size, dtype=np.float32) #save in np because we recompute value a bunch anyway
         self.logp_buffer = np.zeros(self.buffer_size, dtype=np.float32) #logp value
+        self.valid_actions_buffer = np.zeros((self.buffer_size, ACTION_SPACE_SIZE)) #stores what actions were valid at that time point as a 1hot
         self.gamma = gamma
         self.lam = lam 
         self.total_tuples = 0 #so we know where to cut off vectors above for updates
@@ -103,7 +107,7 @@ class VPGBuffer:
         adv_std = np.std(self.adv_buffer)
         self.adv_buffer = (self.adv_buffer - adv_mean) / adv_std
         return [self.recurse_cut_state(self.state_buffer), self.action_buffer[:self.ptr], self.adv_buffer[:self.ptr], 
-                self.rtg_buffer[:self.ptr], self.logp_buffer[:self.ptr]]
+                self.rtg_buffer[:self.ptr], self.logp_buffer[:self.ptr], self.valid_actions_buffer[:self.ptr]]
 
     def empty_buffer(self):
         self.state_buffer = create_2D_state(self.buffer_size)
@@ -116,6 +120,8 @@ class VPGBuffer:
         self.total_tuples = 0 
         self.ptr_start = 0 
         self.ptr = 0 
+        self.valid_actions_buffer = np.zeros((self.buffer_size, ACTION_SPACE_SIZE)) 
+
         return 
 
 
@@ -260,10 +266,8 @@ class LearningAgent(VPGBuffer, DefaultAgent):
 #create a class instance for our learning agent needs a policy architecture and value function architecture
 #idea for ablation: train the value function on a fully observed state space instead of partially observed for the purpose of computing advantage
 
-#torch.manual_seed(42)
+torch.manual_seed(42)
 np.random.seed(42)
-
-train_v_iters = 80
 
 #initialize the network class here
 
@@ -323,24 +327,61 @@ if __name__ == '__main__':
     d_player = 128
     d_opp = 64
     d_field = 32
-    model = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field)
 
-    p1 = LearningAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, network=model)
+    p1 = LearningAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, 
+        network=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0))
     p2 = RandomAgent(id='p2', name='Blue')
+
+
+    optimizer = optim.Adam(p1.network.parameters(), lr=0.001, weight_decay=1e-4)
+    value_loss_fun = nn.MSELoss(reduction='mean')
+    train_v_iters = 40
+
     for i in range(EPOCHS):
-        for j in range(BATCH_SIZE):            
+
+        print('Epoch: ', i)
+
+        for j in range(BATCH_SIZE): 
             game_coordinator.run_learning_episode(p1, p2)
             p1.clear_history()
             p2.clear_history()
-
             p1.end_traj()
-    
-        states, actions, advs, rtgs, logps = p1.get()
-        
-        #policy step
 
-        #value_step
+        states, actions, advs, rtgs, logps, valid_actions = p1.get()
 
+        actions = torch.tensor(actions, dtype=torch.long)
+        advs = torch.tensor(advs, dtype=torch.float)
+        rtgs = torch.tensor(rtgs, dtype=torch.float)
+        logps = torch.tensor(logps, dtype=torch.float)
+        valid_actions = torch.tensor(valid_actions, dtype=torch.long)
+
+        total_traj_len = actions.shape[0]
+
+        # policy step 
+        print('Policy step')
+        optimizer.zero_grad()
+        policy_tensor, value_tensor = p1.network(copy.deepcopy(states)) # (batch, 10), (batch, )
+           
+        valid_policy_tensor = torch.mul(valid_actions, policy_tensor) 
+        valid_policy_tensor /= torch.sum(valid_policy_tensor, dim=1, keepdim=True)
+        logp_action_taken = torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
+        loss = torch.dot(logp_action_taken, advs) / total_traj_len
+
+        loss.backward()
+        optimizer.step()    
+
+        # value_step
+        print('Value steps')
+        for t in range(train_v_iters):
+            optimizer.zero_grad()
+            policy_tensor, value_tensor = p1.network(copy.deepcopy(states))  # (batch, 10), (batch, )
+
+            loss = value_loss_fun(rtgs, value_tensor)
+
+            loss.backward()
+            optimizer.step()
+
+        # End epoch
         win_rate = np.sum(p1.rew_buffer/ BATCH_SIZE)
         print("BATCH " + str(i))
         print('Win rate: ' + str(win_rate))
