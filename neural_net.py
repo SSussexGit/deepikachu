@@ -644,7 +644,8 @@ class DeePikachu0(nn.Module):
         
     def forward(self, x):
 
-        state = self.state_embedding(x)
+        state = copy.deepcopy(x) # embedding is modified inplace
+        state = self.state_embedding(state)
 
         # player 
         player, moves_equivariant, team_pokemon_equivariant = self.player(state['player'])

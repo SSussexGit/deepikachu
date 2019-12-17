@@ -360,7 +360,7 @@ if __name__ == '__main__':
         # policy step 
         print('Policy step')
         optimizer.zero_grad()
-        policy_tensor, value_tensor = p1.network(copy.deepcopy(states)) # (batch, 10), (batch, )
+        policy_tensor, value_tensor = p1.network(states) # (batch, 10), (batch, )
            
         valid_policy_tensor = torch.mul(valid_actions, policy_tensor) 
         valid_policy_tensor /= torch.sum(valid_policy_tensor, dim=1, keepdim=True)
@@ -374,7 +374,7 @@ if __name__ == '__main__':
         print('Value steps')
         for t in range(train_v_iters):
             optimizer.zero_grad()
-            policy_tensor, value_tensor = p1.network(copy.deepcopy(states))  # (batch, 10), (batch, )
+            policy_tensor, value_tensor = p1.network(states)  # (batch, 10), (batch, )
 
             loss = value_loss_fun(rtgs, value_tensor)
 
@@ -383,7 +383,6 @@ if __name__ == '__main__':
 
         # End epoch
         win_rate = np.sum(p1.rew_buffer/ BATCH_SIZE)
-        print("BATCH " + str(i))
         print('Win rate: ' + str(win_rate))
         p1.empty_buffer()
 
