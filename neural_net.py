@@ -339,7 +339,7 @@ class FieldRepresentation0(nn.Module):
 
         self.d_out = d_out
         self.cat_dim = 25 * d_field + d_weather + 2 * d_spikes + 2 * d_toxicspikes
-        self.cat_dim += 13 # _time fields
+        self.cat_dim += 14 # _time fields
 
         # to reduce rel importance of twoturnmove
         self.twoturnmovedimred = FeedForward0(d_move, d_move, d_field, dropout=dropout)
@@ -381,6 +381,7 @@ class FieldRepresentation0(nn.Module):
              x['tailwind'],
              x['tailwind_time'],
              x['tailwindopp'],
+             x['tailwindopp_time'],
              x['taunt'],
              x['taunt_time'],
              x['tauntopp'],
