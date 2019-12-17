@@ -602,12 +602,13 @@ Final net
 
 class DeePikachu0(nn.Module):
     '''Value and Policy Net'''
-    def __init__(self, state_embedding_settings, dropout=0.1):
+    def __init__(self, state_embedding_settings, d_player=128, d_opp=64, d_field=32, dropout=0.1):
         super(DeePikachu0, self).__init__()
 
-        d_player = 128
-        d_opp = 64
-        d_field = 32
+        self.d_player = d_player
+        self.d_opp = d_opp
+        self.d_field = d_field
+
         d_hidden = d_player + d_opp + d_field
         
         self.state_embedding = State(state_embedding_settings)
@@ -694,8 +695,11 @@ if __name__ == '__main__':
         'fieldeffect' : {'embed_dim' : 10, 'dict_size' : MAX_TOK_FIELD},
     }
 
-
-    model = DeePikachu0(state_embedding_settings)
+    d_player = 128
+    d_opp = 64
+    d_field = 32
+        
+    model = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field)
     policy, value = model(copy.deepcopy(example_state))
 
     print('V(s) = {}'.format(value[0].item()))
