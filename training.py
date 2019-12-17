@@ -56,6 +56,7 @@ class VPGBuffer:
     def _init_(self, size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95):
         self.buffer_size = size
         self.state_buffer = create_2D_state(self.buffer_size)
+        self.state2_buffer = create_2D_state(self.buffer_size)
         self.action_buffer = np.zeros(self.buffer_size, dtype=int) #won't overflow since max number is >> possible length
         self.adv_buffer = np.zeros(self.buffer_size, dtype=np.float32)
         self.rew_buffer = np.zeros(self.buffer_size, dtype=np.float32)
@@ -68,6 +69,7 @@ class VPGBuffer:
         self.total_tuples = 0 #so we know where to cut off vectors above for updates
         self.ptr_start = 0 #an index of the start of the trajectory currently being put in memory
         self.ptr = 0 #an index of the next tuple to be put in the buffer
+        self.done_buffer = np.zeros(self.buffer_size, dtype = int)
 
     def end_traj(self):
         '''
@@ -77,12 +79,23 @@ class VPGBuffer:
         rews = np.append(self.rew_buffer[path_slice], 0) #0 added so the sizing works out
         vals = np.append(self.val_buffer[path_slice], 0)
 
+        #add in state2 observastion
+        if(self.ptr == 0 and self.total_tuples > 0):
+            #if 0 pointer save at the end (you looped around the buffer length)
+            self.state2_buffer = self.recurse_store_state(self.state2_buffer, self.state, index = self.total_tuples-1)
+            self.done_buffer[self.total_tuples-1] = 1
+        else:
+            #else update the state before the current one
+            self.state2_buffer = self.recurse_store_state(self.state2_buffer, self.state, index = self.ptr-1)
+            self.done_buffer[self.ptr-1] = 1
+
         #compute GAE advantage
         deltas = rews[:-1] + self.gamma * vals[1:] - vals[:-1]
         self.adv_buffer[path_slice] = training_helpers.discount_cumsum(deltas, self.gamma * self.lam)
 
         #compute rewards-to-go
         self.rtg_buffer[path_slice] = training_helpers.discount_cumsum(rews, self.gamma)[:-1]
+
 
         self.ptr_start = self.ptr
         return
@@ -121,6 +134,7 @@ class VPGBuffer:
         self.ptr_start = 0 
         self.ptr = 0 
         self.valid_actions_buffer = np.zeros((self.buffer_size, ACTION_SPACE_SIZE)) 
+        self.done_buffer = np.zeros(self.buffer_size, dtype = int)
 
         return 
 
@@ -137,6 +151,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
 
         self.buffer_size = size
         self.state_buffer = create_2D_state(self.buffer_size)
+        self.state2_buffer = create_2D_state(self.buffer_size)
         self.action_buffer = np.zeros(self.buffer_size, dtype=int) #won't overflow since max number is >> possible length
         self.adv_buffer = np.zeros(self.buffer_size, dtype=np.float32)
         self.rew_buffer = np.zeros(self.buffer_size, dtype=np.float32)
@@ -149,10 +164,11 @@ class LearningAgent(VPGBuffer, DefaultAgent):
         self.total_tuples = 0 #so we know where to cut off vectors above for updates
         self.ptr_start = 0 #an index of the start of the trajectory currently being put in memory
         self.ptr = 0 #an index of the next tuple to be put in the buffer
+        self.done_buffer = np.zeros(self.buffer_size, dtype = int)
 
         self.network = network
 
-    def recurse_store_state(self, state_buffer, state):
+    def recurse_store_state(self, state_buffer, state, index = self.ptr):
         '''
         stores a state in buffer recursively
         '''
@@ -160,7 +176,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
             if (isinstance(state[field], dict)):
                 state_buffer[field] = self.recurse_store_state(state_buffer[field], state[field])
             else:
-                state_buffer[field][self.ptr] = state[field]
+                state_buffer[field][index] = state[field]
         return state_buffer
 
     def construct_np_state_from_python_state(self, np_state, state):
@@ -184,6 +200,16 @@ class LearningAgent(VPGBuffer, DefaultAgent):
 
         self.state_buffer = self.recurse_store_state(self.state_buffer, self.state)
 
+        #storing the previous time-points next state
+        #unless its the first turn of the game store state2 at previous time 
+        if(self.ptr != self.ptr_start):
+            if(self.ptr == 0 and self.total_tuples > 0):
+                #if 0 pointer save at the end (you looped around the buffer length)
+                self.state2_buffer = self.recurse_store_state(self.state2_buffer, self.state, index = self.total_tuples-1)
+            else:
+                #else update the state before the current one
+                self.state2_buffer = self.recurse_store_state(self.state2_buffer, self.state, index = self.ptr-1)
+
         self.action_buffer[self.ptr] = action_to_int(action)
 
         self.val_buffer[self.ptr] = value
@@ -196,14 +222,17 @@ class LearningAgent(VPGBuffer, DefaultAgent):
 
 
         self.ptr+=1
+        self.total_tuples = max(self.ptr, self.total_tuples) #if full stay full else increment with pointer
         return
 
     def won_game(self):
         '''
         sets this time's reward to 1 in the buffer
         '''
-        assert(self.ptr > 0) #you can't win before taking an action 
-        self.rew_buffer[self.ptr-1] = 1 
+        if(self.ptr == 0 and total_tuples > 0):
+            self.rew_buffer[self.total_tuples-1] = 1 
+        else:
+            self.rew_buffer[self.ptr-1] = 1 
 
     def process_request(self, request):
         '''
@@ -261,6 +290,90 @@ class LearningAgent(VPGBuffer, DefaultAgent):
         self.store_in_buffer(self.state, action, value, logp, valid_actions)
         
         return PlayerAction(self.id, action)
+
+
+class SACAgent(QAgent):
+    '''
+    New class for Q learning
+    '''
+    def process_request(self, request):
+        '''
+        Uses a Q function instead of a policy. For SAC take exp of "policy"
+        '''
+        self.request_update(request.message)
+        message = request.message['request_dict']
+
+        #save the state in the buffer
+
+        #first get our valid action space
+        valid_actions = get_valid_actions(self.state, message)
+        
+
+        if(self.network == None):
+            if (valid_actions == []):
+                action = copy.deepcopy(ACTION['default'])
+            else:
+                action = random.choice(valid_actions)
+            value = 0
+            logp = np.log(1/min(1, len(valid_actions)))
+        else:
+            if (valid_actions == []):
+                value = 0
+                action = copy.deepcopy(ACTION['default'])
+            else:
+                is_teampreview = ('teamspec' in valid_actions[0])
+                np_state = create_2D_state(1) #initialize an empty np state to update
+                np_state = self.construct_np_state_from_python_state(np_state, self.state)
+                policy_tensor, value_tensor = self.network(np_state)
+                value = value_tensor[0]
+
+                if is_teampreview:
+                    policy_tensor[0][0:4] *= 0
+                else:
+                    for i in np.arange(10):
+                        if int_to_action(i) not in valid_actions:
+                            policy_tensor[0][i] *= 0
+
+                policy = np.exp(policy_tensor.cpu().detach().numpy()[0]   ) 
+                policy /= np.sum(policy)
+
+                #check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
+                if is_teampreview:
+                    action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = True)
+                else:
+                    action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = False)
+            
+
+            #save logpaction in buffer (not really needed since it gets recomputed)
+            logp = np.log(1/min(1, len(valid_actions)))
+
+
+        self.store_in_buffer(self.state, action, value, logp, valid_actions)
+        
+        return PlayerAction(self.id, action)
+
+    def recurse_index_state(self, state_buffer, idxs):
+        '''
+        stores a state in buffer recursively
+        '''
+        for field in state_buffer:
+            if (isinstance(state_buffer[field], dict)):
+                state_buffer[field] = self.recurse_cut_state(state_buffer[field])
+            else:
+                state_buffer[field] = state_buffer[field][idxs]
+        return state_buffer
+
+    def get(self, minibatch_size = 32):
+        '''
+        Call after a batch to return a sample from the buffer
+        '''
+        idxs = np.random.randint(0, self.total_tuples, size=minibatch_size)
+        # nornalize advantage values to mean 0 std 1
+        adv_mean = np.mean(self.adv_buffer)
+        adv_std = np.std(self.adv_buffer)
+        self.adv_buffer = (self.adv_buffer - adv_mean) / adv_std
+        return [self.recurse_index_state(self.state_buffer, idxs), self.recurse_index_state(self.state2_buffer, idxs), self.action_buffer[idxs], self.adv_buffer[idxs], 
+                self.rtg_buffer[idxs], self.logp_buffer[idxs], self.valid_actions_buffer[idxs], self.rew_buffer[idxs], , self.done_buffer[idxs]]
 
 
 #create a class instance for our learning agent needs a policy architecture and value function architecture
@@ -328,14 +441,16 @@ if __name__ == '__main__':
     d_opp = 64
     d_field = 32
 
-    p1 = LearningAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, 
+    p1 = SACAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, 
         network=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0))
     p2 = RandomAgent(id='p2', name='Blue')
 
 
     optimizer = optim.Adam(p1.network.parameters(), lr=0.001, weight_decay=1e-4)
     value_loss_fun = nn.MSELoss(reduction='mean')
-    train_v_iters = 40
+    train_update_iters = 5
+
+    alpha = 0.05
 
     for i in range(EPOCHS):
 
@@ -347,36 +462,51 @@ if __name__ == '__main__':
             p2.clear_history()
             p1.end_traj()
 
-        states, actions, advs, rtgs, logps, valid_actions = p1.get()
 
-        actions = torch.tensor(actions, dtype=torch.long)
-        advs = torch.tensor(advs, dtype=torch.float)
-        rtgs = torch.tensor(rtgs, dtype=torch.float)
-        logps = torch.tensor(logps, dtype=torch.float)
-        valid_actions = torch.tensor(valid_actions, dtype=torch.long)
+        for _ in train_update_iters:
+            states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1.get()
 
-        total_traj_len = actions.shape[0]
+            actions = torch.tensor(actions, dtype=torch.long)
+            advs = torch.tensor(advs, dtype=torch.float)
+            rtgs = torch.tensor(rtgs, dtype=torch.float)
+            logps = torch.tensor(logps, dtype=torch.float)
+            valid_actions = torch.tensor(valid_actions, dtype=torch.long)
+            rews = torch.tensor(rews, dtype=torch.float)
+            dones = torch.tensor(doness, dtype=torch.long)
 
-        # policy step 
-        print('Policy step')
-        optimizer.zero_grad()
-        policy_tensor, value_tensor = p1.network(states) # (batch, 10), (batch, )
-           
-        valid_policy_tensor = torch.mul(valid_actions, policy_tensor) 
-        valid_policy_tensor /= torch.sum(valid_policy_tensor, dim=1, keepdim=True)
-        logp_action_taken = torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
-        loss = torch.dot(logp_action_taken, advs) / total_traj_len
+            total_traj_len = actions.shape[0]
 
-        loss.backward()
-        optimizer.step()    
-
-        # value_step
-        print('Value steps')
-        for t in range(train_v_iters):
+            # Q step
+            print('Q step')
             optimizer.zero_grad()
-            policy_tensor, value_tensor = p1.network(states)  # (batch, 10), (batch, )
 
-            loss = value_loss_fun(rtgs, value_tensor)
+            with torch.no_grad():
+                Q2_tensor, value2_tensor = p1.network(states2)
+                print(value2_tensor)
+
+            Q_tensor, value_tensor = p1.network(states) # (batch, 10), (batch, )        
+            valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor))  
+            Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
+            loss =  value_loss_fun(Q_action_taken, rews + p1.gamma * (1-dones) * value2_tensor) 
+
+            loss.backward()
+            optimizer.step()    
+
+
+            # Value_step
+            print('Value step')
+            optimizer.zero_grad()
+            with torch.no_grad():
+                Q_tensor, _ = p1.network(states) 
+                print(Q_tensor)
+
+            _, value_tensor = p1.network(states) 
+
+            valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor)) 
+            valid_policy_tensor /= torch.sum(valid_Q_tensor, dim=1, keepdim=True)
+
+            target = Q_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
+            loss = value_loss_fun(target, value_tensor)
 
             loss.backward()
             optimizer.step()
