@@ -26,7 +26,7 @@ from neural_net import DeePikachu0
 
 EPOCHS = 30
 MAX_GAME_LEN = 400 #max length is 200 but if you u-turn every turn you move twice per turn
-BATCH_SIZE = 2 #100
+BATCH_SIZE = 10 #100
 ACTION_SPACE_SIZE = 10 #4 moves and 6 switches
 
 def action_to_int(action):
@@ -167,14 +167,15 @@ class LearningAgent(VPGBuffer, DefaultAgent):
         self.done_buffer = np.zeros(self.buffer_size, dtype = int)
 
         self.network = network
+        self.wins = 0
 
-    def recurse_store_state(self, state_buffer, state, index = self.ptr):
+    def recurse_store_state(self, state_buffer, state, index):
         '''
         stores a state in buffer recursively
         '''
         for field in state:
             if (isinstance(state[field], dict)):
-                state_buffer[field] = self.recurse_store_state(state_buffer[field], state[field])
+                state_buffer[field] = self.recurse_store_state(state_buffer[field], state[field], index)
             else:
                 state_buffer[field][index] = state[field]
         return state_buffer
@@ -198,7 +199,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
 
         #leave rewards as all 0 then impute later in the win function
 
-        self.state_buffer = self.recurse_store_state(self.state_buffer, self.state)
+        self.state_buffer = self.recurse_store_state(self.state_buffer, self.state, self.ptr)
 
         #storing the previous time-points next state
         #unless its the first turn of the game store state2 at previous time 
@@ -222,6 +223,8 @@ class LearningAgent(VPGBuffer, DefaultAgent):
 
 
         self.ptr+=1
+        if(self.ptr == self.buffer_size):
+            self.ptr = 0
         self.total_tuples = max(self.ptr, self.total_tuples) #if full stay full else increment with pointer
         return
 
@@ -233,6 +236,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
             self.rew_buffer[self.total_tuples-1] = 1 
         else:
             self.rew_buffer[self.ptr-1] = 1 
+        self.wins += 1
 
     def process_request(self, request):
         '''
@@ -295,7 +299,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
         return PlayerAction(self.id, action)
 
 
-class SACAgent(QAgent):
+class SACAgent(LearningAgent):
     '''
     New class for Q learning
     '''
@@ -328,8 +332,9 @@ class SACAgent(QAgent):
                 np_state = create_2D_state(1) #initialize an empty np state to update
                 np_state = self.construct_np_state_from_python_state(np_state, self.state)
                 policy_tensor, value_tensor = self.network(np_state)
-                value = value_tensor[0]
+                value = value_tensor[0]  
 
+                policy_tensor = torch.exp(policy_tensor)
                 if is_teampreview:
                     policy_tensor[0][0:4] *= 0
                 else:
@@ -337,7 +342,7 @@ class SACAgent(QAgent):
                         if int_to_action(i) not in valid_actions:
                             policy_tensor[0][i] *= 0
 
-                policy = np.exp(policy_tensor.cpu().detach().numpy()[0]   ) 
+                policy = policy_tensor.cpu().detach().numpy()[0] 
                 policy /= np.sum(policy)
 
                 #check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
@@ -361,22 +366,22 @@ class SACAgent(QAgent):
         '''
         for field in state_buffer:
             if (isinstance(state_buffer[field], dict)):
-                state_buffer[field] = self.recurse_cut_state(state_buffer[field])
+                state_buffer[field] = self.recurse_index_state(state_buffer[field], idxs)
             else:
                 state_buffer[field] = state_buffer[field][idxs]
         return state_buffer
 
-    def get(self, minibatch_size = 32):
+    def get(self, minibatch_size = 10):
         '''
         Call after a batch to return a sample from the buffer
         '''
         idxs = np.random.randint(0, self.total_tuples, size=minibatch_size)
         # nornalize advantage values to mean 0 std 1
-        adv_mean = np.mean(self.adv_buffer)
-        adv_std = np.std(self.adv_buffer)
-        self.adv_buffer = (self.adv_buffer - adv_mean) / adv_std
-        return [self.recurse_index_state(self.state_buffer, idxs), self.recurse_index_state(self.state2_buffer, idxs), self.action_buffer[idxs], self.adv_buffer[idxs], 
-                self.rtg_buffer[idxs], self.logp_buffer[idxs], self.valid_actions_buffer[idxs], self.rew_buffer[idxs], , self.done_buffer[idxs]]
+        #adv_mean = np.mean(self.adv_buffer)
+        #adv_std = np.std(self.adv_buffer)
+        #self.adv_buffer = (self.adv_buffer - adv_mean) / adv_std
+        return [self.recurse_index_state(copy.deepcopy(self.state_buffer), idxs), self.recurse_index_state(copy.deepcopy(self.state2_buffer), idxs), self.action_buffer[idxs], self.adv_buffer[idxs], 
+                self.rtg_buffer[idxs], self.logp_buffer[idxs], self.valid_actions_buffer[idxs], self.rew_buffer[idxs], self.done_buffer[idxs]]
 
 
 #create a class instance for our learning agent needs a policy architecture and value function architecture
@@ -445,7 +450,7 @@ if __name__ == '__main__':
     d_field = 16
 
     p1 = SACAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, 
-        network=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0))
+        network=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0, softmax=False))
     p2 = RandomAgent(id='p2', name='Blue')
 
     optimizer = optim.Adam(p1.network.parameters(), lr=0.001, weight_decay=1e-4)
@@ -468,12 +473,9 @@ if __name__ == '__main__':
 
 
         endttime = time.time()
-        
-
-        states, actions, advs, rtgs, logps, valid_actions = p1.get()
 
 
-        for _ in train_update_iters:
+        for _ in range(train_update_iters):
             states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1.get()
 
             actions = torch.tensor(actions, dtype=torch.long)
@@ -482,19 +484,19 @@ if __name__ == '__main__':
             logps = torch.tensor(logps, dtype=torch.float)
             valid_actions = torch.tensor(valid_actions, dtype=torch.long)
             rews = torch.tensor(rews, dtype=torch.float)
-            dones = torch.tensor(doness, dtype=torch.long)
+            dones = torch.tensor(dones, dtype=torch.long)
 
             total_traj_len = actions.shape[0]
 
             # Q step
-            print('Q step')
+            #print('Q step')
             optimizer.zero_grad()
 
             with torch.no_grad():
                 Q2_tensor, value2_tensor = p1.network(states2)
-                print(value2_tensor)
+    
 
-            Q_tensor, value_tensor = p1.network(states) # (batch, 10), (batch, )        
+            Q_tensor, value_tensor = p1.network(states) # (batch, 10), (batch, )       
             valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor))  
             Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
             loss =  value_loss_fun(Q_action_taken, rews + p1.gamma * (1-dones) * value2_tensor) 
@@ -503,17 +505,17 @@ if __name__ == '__main__':
 
 
             # Value_step
-            print('Value step')
+            #print('Value step')
 
             optimizer.zero_grad()
             with torch.no_grad():
                 Q_tensor, _ = p1.network(states) 
-                print(Q_tensor)
+                
 
             _, value_tensor = p1.network(states) 
 
             valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor)) 
-            valid_policy_tensor /= torch.sum(valid_Q_tensor, dim=1, keepdim=True)
+            valid_policy_tensor = valid_Q_tensor / torch.sum(valid_Q_tensor, dim=1, keepdim=True)
 
             target = Q_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
             loss = value_loss_fun(target, value_tensor)
@@ -522,9 +524,9 @@ if __name__ == '__main__':
             optimizer.step()
 
         # End epoch
-        win_rate = np.sum(p1.rew_buffer/ BATCH_SIZE)
+        win_rate = p1.wins/ ((i+1)*BATCH_SIZE) #total win rate over all games
         print('Win rate: ' + str(win_rate))
-        p1.empty_buffer()
+        #p1.empty_buffer()
 
 
 
