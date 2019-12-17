@@ -25,10 +25,10 @@ MAX_TOK_SPIKES       = 4
 MAX_TOK_TOXSPIKES    = 3
 
 # imputations
-VAL_STAT =     [2/8, 2/7, 2/6, 2/5, 2/4, 2/3, 2/2, 3/2, 4/2, 5/2, 6/2, 7/2, 8/2]
-VAL_ACCURACY = [3/9, 3/8, 3/7, 3/6, 3/5, 3/4, 3/3, 4/3, 5/3, 6/3, 7/3, 8/3, 9/3]
-VAL_EVASION =  list(reversed(VAL_ACCURACY))
-VAL_OFFSET = 6
+VAL_STAT =     np.array([2/8, 2/7, 2/6, 2/5, 2/4, 2/3, 2/2, 3/2, 4/2, 5/2, 6/2, 7/2, 8/2])
+VAL_ACCURACY = np.array([3/9, 3/8, 3/7, 3/6, 3/5, 3/4, 3/3, 4/3, 5/3, 6/3, 7/3, 8/3, 9/3])
+VAL_EVASION =  np.flip(VAL_ACCURACY)
+VAL_OFFSET =   np.array(6)
 
 FIELD_EFFECTS = [ # all true/false
     'trickroom',
@@ -128,8 +128,8 @@ class State(torch.nn.Module):
             param.data.uniform_(-1.0, 1.0) 
 
 
-    def __convert_bool(self, b):
-        return torch.tensor(1) if b else torch.tensor(0) 
+    # def __convert_bool(self, b):
+    #     return torch.tensor(1) if b else torch.tensor(0) 
 
     def __recursive_replace(self, x):
         '''Recursively replaces tokens with embeddings in dict x'''
@@ -139,47 +139,46 @@ class State(torch.nn.Module):
                 x[key] = self.__recursive_replace(value)
 
             # if int, we possibly need an embedding
-            elif isinstance(value, int):
+            elif isinstance(value, np.ndarray):
                 if key in self.pokemon_fields:
-                    x[key] = self.pokemon_embedding(torch.tensor(value)).unsqueeze(0)
+                    x[key] = self.pokemon_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 elif key in self.type_fields:
-                    x[key] = self.type_embedding(torch.tensor(value)).unsqueeze(0)
+                    x[key] = self.type_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 elif key in self.move_fields:
-                    x[key] = self.move_embedding(torch.tensor(value)).unsqueeze(0)
+                    x[key] = self.move_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 elif key in self.move_type_fields:
-                    x[key] = self.move_type_embedding(torch.tensor(value)).unsqueeze(0)
+                    x[key] = self.move_type_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 elif key in self.ability_fields:
-                    x[key] = self.ability_embedding(torch.tensor(value)).unsqueeze(0)
+                    x[key] = self.ability_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 elif key in self.item_fields:
-                    x[key] = self.item_embedding(torch.tensor(value)).unsqueeze(0)
+                    x[key] = self.item_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 elif key in self.condition_fields:
-                    x[key] = self.condition_embedding(torch.tensor(value)).unsqueeze(0)
+                    x[key] = self.condition_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 elif key in self.weather_fields:
-                    x[key] = self.weather_embedding(torch.tensor(value)).unsqueeze(0)
+                    x[key] = self.weather_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 elif key in self.alive_fields:
-                    x[key] = self.alive_embedding(self.__convert_bool(value)).unsqueeze(0)
+                    x[key] = self.alive_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 elif key in self.disabled_fields:
-                    x[key] = self.disabled_embedding(self.__convert_bool(value)).unsqueeze(0)
+                    x[key] = self.disabled_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 elif key in self.spikes_fields:
                     if key == 'spikes':
-                        x[key] = self.spikes_embedding(torch.tensor(value)).unsqueeze(0)
+                        x[key] = self.spikes_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                     else:
-                        x[key] = self.spikesopp_embedding(torch.tensor(value)).unsqueeze(0)
+                        x[key] = self.spikesopp_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 elif key in self.toxicspikes_fields:
                     if key == 'toxicspikes':
-                        x[key] = self.toxicspikes_embedding(torch.tensor(value)).unsqueeze(0)
+                        x[key] = self.toxicspikes_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                     else:
-                        x[key] = self.toxicspikesopp_embedding(torch.tensor(value)).unsqueeze(0)
-                    x[key] = self.toxicspikes_embedding(torch.tensor(value)).unsqueeze(0)
+                        x[key] = self.toxicspikesopp_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
                 # special: need to find correct embedding in list
                 elif key in self.fieldeffect_fields:
-                    x[key] = self.fieldeffect_embeddings[self.field_idx_dict[key]](self.__convert_bool(value)).unsqueeze(0)
+                    x[key] = self.fieldeffect_embeddings[self.field_idx_dict[key]](torch.tensor(value, dtype=torch.long))
 
                 # manual imputations
                 elif key in self.accuracy_fields:
-                    x[key] = torch.tensor([VAL_ACCURACY[VAL_OFFSET + value]], dtype=torch.float).unsqueeze(0)
+                    x[key] = torch.tensor(VAL_ACCURACY[VAL_OFFSET + value], dtype=torch.float).unsqueeze(1)
                 elif key in self.evasion_fields:
-                    x[key] = torch.tensor([VAL_EVASION[VAL_OFFSET + value]], dtype=torch.float).unsqueeze(0)
+                    x[key] = torch.tensor(VAL_EVASION[VAL_OFFSET + value], dtype=torch.float).unsqueeze(1)
 
                 # opponent subdict
                 elif key in self.opp_active_state:
@@ -195,11 +194,14 @@ class State(torch.nn.Module):
 
                 # regular value, no embedding necessary
                 else:
-                    x[key] = torch.tensor([value], dtype=torch.float).unsqueeze(0)
+                    x[key] = torch.tensor(value, dtype=torch.float).unsqueeze(1)
+
+                # print(x[key].shape, key) # shape debugging
 
             # if neither int nor dict, invalid state dict formatting
             else:
                 raise ValueError('Every value in state dict must contain either integer or dict. Found: {}'.format(value))
+                            
         return x
 
     def forward(self, x): 
@@ -444,6 +446,9 @@ class MoveRepresentation0(nn.Module):
              boosts
         ]
 
+        # for i in h:
+        #     print(i.dtype, i.shape)
+
         h = torch.cat(h, dim=1)
         assert(h.shape[1] == self.cat_dim)
 
@@ -566,7 +571,7 @@ class PlayerRepresentation0(nn.Module):
         is_opp = 'oppaccuracy' in x['boosts']
 
         # determine correct boosts
-        active_boosts = torch.tensor([
+        active_boosts = torch.cat([
             x['boosts']['oppaccuracy'] if is_opp else x['boosts']['accuracy'],
             x['boosts']['oppatk'] if is_opp else x['boosts']['atk'],
             x['boosts']['oppdef'] if is_opp else x['boosts']['def'],
@@ -574,9 +579,9 @@ class PlayerRepresentation0(nn.Module):
             x['boosts']['oppspa'] if is_opp else x['boosts']['spa'],
             x['boosts']['oppspd'] if is_opp else x['boosts']['spd'],
             x['boosts']['oppspe'] if is_opp else x['boosts']['spe'],
-        ], dtype=torch.float).unsqueeze(0)
+        ], dim=1).float()
 
-        team_boosts = torch.tensor([0, 0, 0, 0, 0, 0, 0], dtype=torch.float).unsqueeze(0)
+        team_boosts = torch.zeros(active_boosts.shape).float()
 
         # active pokemon representation
         # (invariant, equivariant)
@@ -669,8 +674,6 @@ class DeePikachu0(nn.Module):
         return action_probs, value
 
 
-################################
-
 
 if __name__ == '__main__':
 
@@ -678,8 +681,8 @@ if __name__ == '__main__':
     Example
     '''
 
-    #example_state = {'player': {'active': {'pokemon_id': 489, 'pokemontype1': 10, 'pokemontype2': 4, 'active': True, 'baseAbility': 28, 'condition': 7, 'alive': True, 'hp': 362, 'level': 100, 'item': 114, 'stats': {'max_hp': 362, 'atk': 231, 'def': 201, 'spa': 231, 'spd': 201, 'spe': 185}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 15, 'pp': 48, 'movetype': 13, 'id': 427}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 10, 'pp': 24, 'movetype': 2, 'id': 239}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 20, 'pp': 16, 'movetype': 5, 'id': 408}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 10, 'pp': 24, 'movetype': 11, 'id': 249}}}, 'boosts': {'atk': 0, 'def': 0, 'spa': 0, 'spd': 0, 'spe': 0, 'accuracy': 0, 'evasion': 0}, 'team': {0: {'pokemon_id': 489, 'pokemontype1': 10, 'pokemontype2': 4, 'active': True, 'baseAbility': 28, 'condition': 7, 'alive': True, 'hp': 362, 'level': 100, 'item': 114, 'stats': {'max_hp': 362, 'atk': 231, 'def': 201, 'spa': 231, 'spd': 201, 'spe': 185}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 15, 'pp': 48, 'movetype': 13, 'id': 427}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 10, 'pp': 24, 'movetype': 2, 'id': 239}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 20, 'pp': 16, 'movetype': 5, 'id': 408}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 10, 'pp': 24, 'movetype': 11, 'id': 249}}}, 1: {'pokemon_id': 28, 'pokemontype1': 5, 'pokemontype2': 0, 'active': False, 'baseAbility': 34, 'condition': 7, 'alive': False, 'hp': 0, 'level': 100, 'item': 236, 'stats': {'max_hp': 362, 'atk': 159, 'def': 144, 'spa': 204, 'spd': 187, 'spe': 221}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 20, 'pp': 20, 'movetype': 3, 'id': 419}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 20, 'pp': 20, 'movetype': 11, 'id': 449}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 5, 'pp': 5, 'movetype': 14, 'id': 229}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 15, 'pp': 15, 'movetype': 5, 'id': 87}}}, 2: {'pokemon_id': 598, 'pokemontype1': 2, 'pokemontype2': 5, 'active': False, 'baseAbility': 70, 'condition': 7, 'alive': False, 'hp': 0, 'level': 100, 'item': 270, 'stats': {'max_hp': 243, 'atk': 136, 'def': 148, 'spa': 211, 'spd': 149, 'spe': 230}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 40, 'pp': 40, 'movetype': 14, 'id': 239}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 20, 'pp': 20, 'movetype': 17, 'id': 407}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 20, 'pp': 20, 'movetype': 16, 'id': 523}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 10, 'pp': 10, 'movetype': 12, 'id': 204}}}, 3: {'pokemon_id': 611, 'pokemontype1': 10, 'pokemontype2': 8, 'active': False, 'baseAbility': 20, 'condition': 7, 'alive': True, 'hp': 230, 'level': 100, 'item': 236, 'stats': {'max_hp': 230, 'atk': 96, 'def': 192, 'spa': 281, 'spd': 192, 'spe': 176}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 40, 'pp': 40, 'movetype': 14, 'id': 128}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 20, 'pp': 20, 'movetype': 14, 'id': 249}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 10, 'pp': 10, 'movetype': 2, 'id': 222}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 10, 'pp': 10, 'movetype': 12, 'id': 239}}}, 4: {'pokemon_id': 547, 'pokemontype1': 2, 'pokemontype2': 15, 'active': False, 'baseAbility': 70, 'condition': 7, 'alive': False, 'hp': 0, 'level': 100, 'item': 283, 'stats': {'max_hp': 255, 'atk': 202, 'def': 200, 'spa': 142, 'spd': 166, 'spe': 239}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 30, 'pp': 30, 'movetype': 10, 'id': 228}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 15, 'pp': 15, 'movetype': 8, 'id': 16}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 10, 'pp': 10, 'movetype': 4, 'id': 226}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 15, 'pp': 15, 'movetype': 10, 'id': 91}}}, 5: {'pokemon_id': 346, 'pokemontype1': 12, 'pokemontype2': 16, 'active': False, 'baseAbility': 28, 'condition': 1, 'alive': True, 'hp': 78, 'level': 100, 'item': 236, 'stats': {'max_hp': 233, 'atk': 162, 'def': 219, 'spa': 162, 'spd': 244, 'spe': 170}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 5, 'pp': 5, 'movetype': 8, 'id': 231}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 15, 'pp': 15, 'movetype': 10, 'id': 448}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 20, 'pp': 20, 'movetype': 14, 'id': 117}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 15, 'pp': 15, 'movetype': 12, 'id': 91}}}}}, 'opponent': {'active': {'pokemon_id': 152, 'pokemontype1': 16, 'pokemontype2': 0, 'active': True, 'baseAbility': 0, 'condition': 1, 'alive': True, 'hp': 88, 'level': 100, 'item': 0, 'stats': {'max_hp': 106, 'atk': 110, 'def': 90, 'spa': 154, 'spd': 90, 'spe': 130}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}}}, 'boosts': {'oppatk': 0, 'oppdef': 0, 'oppspa': 0, 'oppspd': 0, 'oppspe': 0, 'oppaccuracy': 0, 'oppevasion': 0}, 'team': {0: {'pokemon_id': 136, 'pokemontype1': 19, 'pokemontype2': 0, 'active': False, 'baseAbility': 0, 'condition': 1, 'alive': True, 'hp': 100, 'level': 100, 'item': 0, 'stats': {'max_hp': 130, 'atk': 65, 'def': 60, 'spa': 110, 'spd': 95, 'spe': 65}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}}}, 1: {'pokemon_id': 443, 'pokemontype1': 14, 'pokemontype2': 9, 'active': False, 'baseAbility': 0, 'condition': 1, 'alive': True, 'hp': 100, 'level': 100, 'item': 0, 'stats': {'max_hp': 76, 'atk': 65, 'def': 45, 'spa': 92, 'spd': 42, 'spe': 91}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}}}, 2: {'pokemon_id': 38, 'pokemontype1': 6, 'pokemontype2': 0, 'active': False, 'baseAbility': 0, 'condition': 1, 'alive': True, 'hp': 100, 'level': 100, 'item': 0, 'stats': {'max_hp': 95, 'atk': 70, 'def': 73, 'spa': 95, 'spd': 90, 'spe': 60}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}}}, 3: {'pokemon_id': 51, 'pokemontype1': 2, 'pokemontype2': 15, 'active': False, 'baseAbility': 0, 'condition': 1, 'alive': True, 'hp': 100, 'level': 100, 'item': 0, 'stats': {'max_hp': 70, 'atk': 65, 'def': 60, 'spa': 90, 'spd': 75, 'spe': 90}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}}}, 4: {'pokemon_id': 432, 'pokemontype1': 3, 'pokemontype2': 9, 'active': False, 'baseAbility': 0, 'condition': 1, 'alive': True, 'hp': 100, 'level': 100, 'item': 0, 'stats': {'max_hp': 100, 'atk': 125, 'def': 52, 'spa': 105, 'spd': 52, 'spe': 71}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}}}, 5: {'pokemon_id': 152, 'pokemontype1': 16, 'pokemontype2': 0, 'active': True, 'baseAbility': 0, 'condition': 1, 'alive': True, 'hp': 88, 'level': 100, 'item': 0, 'stats': {'max_hp': 106, 'atk': 110, 'def': 90, 'spa': 154, 'spd': 90, 'spe': 130}, 'moves': {0: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 1: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 2: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}, 3: {'disabled': False, 'moveid': 0, 'maxpp': 0, 'pp': 0, 'movetype': 0}}}}}, 'field': {'weather': 1, 'weather_time': 0, 'terrain': 1, 'terrain_time': 0, 'trickroom': False, 'trickroom_time': 0, 'tailwind': False, 'tailwind_time': 0, 'tailwindopp': False, 'encore': False, 'encore_time': 0, 'encoreopp': False, 'encoreopp_time': 0, 'seed': False, 'seedopp': False, 'sub': False, 'subopp': False, 'taunt': False, 'taunt_time': 0, 'tauntopp': False, 'tauntopp_time': 0, 'torment': False, 'torment_time': 0, 'tormentopp': False, 'tormentopp_time': 0, 'twoturnmove': False, 'twoturnmoveid': 1, 'twoturnmoveopp': False, 'twoturnmoveoppid': 1, 'confusion': False, 'confusionopp': False, 'spikes': 0, 'spikesopp': 0, 'toxicspikes': 0, 'toxicspikesopp': 0, 'stealthrock': False, 'stealthrockopp': False, 'reflect': False, 'reflect_time': 0, 'reflectopp': False, 'reflectopp_time': 0, 'lightscreen': False, 'lightscreen_time': 0, 'lightscreenopp': False, 'lightscreenopp_time': 0, 'twoturnmoveoppnum': 1}}
     example_state = state.create_2D_state(100)
+
     state_embedding_settings = {
         'pokemon' :     {'embed_dim' : 100, 'dict_size' : MAX_TOK_POKEMON},
         'type' :        {'embed_dim' : 50, 'dict_size' : MAX_TOK_TYPE},
@@ -703,6 +706,7 @@ if __name__ == '__main__':
     model = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field)
     policy, value = model(copy.deepcopy(example_state))
 
+    print('Shapes: ', value.shape, policy.shape, )
     print('V(s) = {}'.format(value[0].item()))
     print('pi(moves   |s) = {}'.format(policy[0][:4].cpu().detach().numpy()))
     print('pi(switches|s) = {}'.format(policy[0][4:].cpu().detach().numpy()))
