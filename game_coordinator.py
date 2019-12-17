@@ -305,10 +305,10 @@ def run_learning_episode(p1_agent, p2_agent):
     # start game 
     # simulator.stdin.write('>start {"formatid":"gen5randombattle"}\n')
     simulator.stdin.write('>start {"formatid":"gen5ou"}\n')
-    #simulator.stdin.write('>player p1 {"name":"' + player1.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
-    #simulator.stdin.write('>player p2 {"name":"' + player2.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
-    simulator.stdin.write('>player p1 {"name":"' + player1.name + '" }\n')
-    simulator.stdin.write('>player p2 {"name":"' + player2.name +'" }\n')
+    simulator.stdin.write('>player p1 {"name":"' + player1.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
+    simulator.stdin.write('>player p2 {"name":"' + player2.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
+    # simulator.stdin.write('>player p1 {"name":"' + player1.name + '" }\n')
+    # simulator.stdin.write('>player p2 {"name":"' + player2.name +'" }\n')
     
     simulator.stdin.flush() 
 
@@ -324,9 +324,9 @@ def run_learning_episode(p1_agent, p2_agent):
         message_ids = retrieve_message_ids_set(simulator, new_messages)
         game += new_messages
         
-        # for m in new_messages:
-        #     if not m.message['id'] == 'request':
-        #         print(m.original_str)
+        for m in new_messages:
+            if not m.message['id'] == 'request':
+                print(m.original_str)
         #     else:
         #         pprint.pprint(m.message['request_dict'])
         # for m in new_messages:

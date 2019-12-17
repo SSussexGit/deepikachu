@@ -19,6 +19,7 @@ from custom_structures import *
 from state import *
 from data_pokemon import *
 import neural_net
+from neural_net import DeePikachu0
 
 EPOCHS = 2 #30
 MAX_GAME_LEN = 400 #max length is 200 but if you u-turn every turn you move twice per turn
@@ -35,12 +36,13 @@ def action_to_int(action):
     return int(action['switchspec'])+3
 
 def int_to_action(x, teamprev = False):
-    #opposite of action_to_int
+    #opposite of action_to_int    
     if(x < 4):
         return {'id':'move', 'movespec': str(x+1)}
     elif teamprev:
-        {'id':'team', 'teamspec': str(i-3)}
-    return {'id':'switch', 'switchspec': str(i-3)}
+        return {'id':'team', 'teamspec': str(x-3)}
+    else:
+        return {'id':'switch', 'switchspec': str(x-3)}
 
 
 #torch.set_default_dtype(torch.float64)
@@ -209,8 +211,9 @@ class LearningAgent(VPGBuffer, DefaultAgent):
 
         #first get our valid action space
         valid_actions = get_valid_actions(self.state, message)
+        
 
-        if(self.policy == None):
+        if(self.network == None):
             if (valid_actions == []):
                 action = copy.deepcopy(ACTION['default'])
             else:
@@ -222,19 +225,27 @@ class LearningAgent(VPGBuffer, DefaultAgent):
                 value = 0
                 action = copy.deepcopy(ACTION['default'])
             else:
-                np_state = create_2D_state() #initialize an empty np state to update
+                is_teampreview = ('teamspec' in valid_actions[0])
+                np_state = create_2D_state(1) #initialize an empty np state to update
                 np_state = self.construct_np_state_from_python_state(np_state, self.state)
                 policy_tensor, value_tensor = self.network(np_state)
                 value = value_tensor[0]
-                action = random.choice(valid_actions)
-                for valid_action in valid_actions:
-                    policy_tensor[0][action_to_int(valid_action)] *= 0
-                policy = policy_tensor.cpu().detach().numpy()
-                #check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
-                if('teamspec' in valid_actions[0]):
-                    action = int_to_action(random.choice(policy_tensor), teamprev = True)
+
+                if is_teampreview:
+                    policy_tensor[0][0:4] *= 0
                 else:
-                    action = int_to_action(random.choice(policy_tensor), teamprev = False)
+                    for i in np.arange(10):
+                        if int_to_action(i) not in valid_actions:
+                            policy_tensor[0][i] *= 0
+
+                policy = policy_tensor.cpu().detach().numpy()[0]    
+                policy /= np.sum(policy)
+
+                #check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
+                if is_teampreview:
+                    action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = True)
+                else:
+                    action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = False)
             
 
             #save logpaction in buffer (not really needed since it gets recomputed)
@@ -294,19 +305,19 @@ if __name__ == '__main__':
     Trains LearningAgent vs RandomAgent
     '''
     state_embedding_settings = {
-        'pokemon' :     {'embed_dim' : 100, 'dict_size' : MAX_TOK_POKEMON},
-        'type' :        {'embed_dim' : 50, 'dict_size' : MAX_TOK_TYPE},
-        'move' :        {'embed_dim' : 50, 'dict_size' : MAX_TOK_MOVE},
-        'move_type' :   {'embed_dim' : 50, 'dict_size' : MAX_TOK_MOVE_TYPE},
-        'ability' :     {'embed_dim' : 10, 'dict_size' : MAX_TOK_ABILITY},
-        'item' :        {'embed_dim' : 10, 'dict_size' : MAX_TOK_ITEM},
-        'condition' :   {'embed_dim' : 10, 'dict_size' : MAX_TOK_CONDITION},
-        'weather' :     {'embed_dim' : 10, 'dict_size' : MAX_TOK_WEATHER},
-        'alive' :       {'embed_dim' : 10, 'dict_size' : MAX_TOK_ALIVE},
-        'disabled' :    {'embed_dim' : 10, 'dict_size' : MAX_TOK_DISABLED},
-        'spikes' :      {'embed_dim' : 10, 'dict_size' : MAX_TOK_SPIKES},
-        'toxicspikes' : {'embed_dim' : 10, 'dict_size' : MAX_TOK_TOXSPIKES},
-        'fieldeffect' : {'embed_dim' : 10, 'dict_size' : MAX_TOK_FIELD},
+        'pokemon' :     {'embed_dim' : 100, 'dict_size' : neural_net.MAX_TOK_POKEMON},
+        'type' :        {'embed_dim' : 50, 'dict_size' : neural_net.MAX_TOK_TYPE},
+        'move' :        {'embed_dim' : 50, 'dict_size' : neural_net.MAX_TOK_MOVE},
+        'move_type' :   {'embed_dim' : 50, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
+        'ability' :     {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_ABILITY},
+        'item' :        {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_ITEM},
+        'condition' :   {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_CONDITION},
+        'weather' :     {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_WEATHER},
+        'alive' :       {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_ALIVE},
+        'disabled' :    {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_DISABLED},
+        'spikes' :      {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_SPIKES},
+        'toxicspikes' : {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_TOXSPIKES},
+        'fieldeffect' : {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_FIELD},
     }
 
     d_player = 128
@@ -317,7 +328,7 @@ if __name__ == '__main__':
     p1 = LearningAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, network=model)
     p2 = RandomAgent(id='p2', name='Blue')
     for i in range(EPOCHS):
-        for j in range(BATCH_SIZE):
+        for j in range(BATCH_SIZE):            
             game_coordinator.run_learning_episode(p1, p2)
             p1.clear_history()
             p2.clear_history()
