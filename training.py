@@ -18,6 +18,7 @@ from agents import *
 from custom_structures import *
 from state import *
 from data_pokemon import *
+import neural_net
 
 EPOCHS = 2 #30
 MAX_GAME_LEN = 400 #max length is 200 but if you u-turn every turn you move twice per turn
@@ -25,12 +26,21 @@ BATCH_SIZE = 2 #100
 ACTION_SPACE_SIZE = 10 #4 moves and 6 switches
 
 def action_to_int(action):
+    #moves are 0 through 3, switches and teamspecs are 4 through 9
     if(action['id'] == 'move'):
         return int(action['movespec'])-1
     elif(action['id'] == 'team'):
         return int(action['teamspec'])+3
     #it must be a switch otherwise
     return int(action['switchspec'])+3
+
+def int_to_action(x, teamprev = False):
+    #opposite of action_to_int
+    if(x < 4):
+        return {'id':'move', 'movespec': str(x+1)}
+    elif teamprev:
+        {'id':'team', 'teamspec': str(i-3)}
+    return {'id':'switch', 'switchspec': str(i-3)}
 
 
 #torch.set_default_dtype(torch.float64)
@@ -111,7 +121,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
     '''
     Consists of all VPGbuffer info and a network for selecting moves, along with all agent subclasses
     '''
-    def __init__(self, id, name='Ash', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, networks=None):
+    def __init__(self, id, name='Ash', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, network=None):
         self.id = id
         self.name = name
         self.history = []
@@ -132,12 +142,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
         self.ptr_start = 0 #an index of the start of the trajectory currently being put in memory
         self.ptr = 0 #an index of the next tuple to be put in the buffer
 
-        if(networks!=None):
-            self.policy = networks['policy']  #a function that takes in state and give a policy to sample from
-            self.value_fun = networks['value']
-        else: 
-            self.policy = None
-            self.value_fun = None
+        self.network = network
 
     def recurse_store_state(self, state_buffer, state):
         '''
@@ -203,11 +208,21 @@ class LearningAgent(VPGBuffer, DefaultAgent):
             logp = np.log(1/min(1, len(valid_actions)))
         else:
             if (valid_actions == []):
+                value = 0
                 action = copy.deepcopy(ACTION['default'])
             else:
+                policy_tensor, value_tensor = self.network(copy.deepcopy(self.state))
+                value = value_tensor[0]
                 action = random.choice(valid_actions)
-            #compute the value given state
-            value = 0
+                for valid_action in valid_actions:
+                    policy_tensor[0][action_to_int(valid_action)] *= 0
+                policy = policy_tensor.cpu().detach().numpy()
+                #check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
+                if('teamspec' in valid_actions[0]):
+                    action = int_to_action(random.choice(policy_tensor), teamprev = True)
+                else:
+                    action = int_to_action(random.choice(policy_tensor), teamprev = False)
+            
 
             #save logpaction in buffer (not really needed since it gets recomputed)
             logp = np.log(1/min(1, len(valid_actions)))
@@ -265,7 +280,28 @@ if __name__ == '__main__':
     '''
     Trains LearningAgent vs RandomAgent
     '''
-    p1 = LearningAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, networks=None)
+    state_embedding_settings = {
+        'pokemon' :     {'embed_dim' : 100, 'dict_size' : MAX_TOK_POKEMON},
+        'type' :        {'embed_dim' : 50, 'dict_size' : MAX_TOK_TYPE},
+        'move' :        {'embed_dim' : 50, 'dict_size' : MAX_TOK_MOVE},
+        'move_type' :   {'embed_dim' : 50, 'dict_size' : MAX_TOK_MOVE_TYPE},
+        'ability' :     {'embed_dim' : 10, 'dict_size' : MAX_TOK_ABILITY},
+        'item' :        {'embed_dim' : 10, 'dict_size' : MAX_TOK_ITEM},
+        'condition' :   {'embed_dim' : 10, 'dict_size' : MAX_TOK_CONDITION},
+        'weather' :     {'embed_dim' : 10, 'dict_size' : MAX_TOK_WEATHER},
+        'alive' :       {'embed_dim' : 10, 'dict_size' : MAX_TOK_ALIVE},
+        'disabled' :    {'embed_dim' : 10, 'dict_size' : MAX_TOK_DISABLED},
+        'spikes' :      {'embed_dim' : 10, 'dict_size' : MAX_TOK_SPIKES},
+        'toxicspikes' : {'embed_dim' : 10, 'dict_size' : MAX_TOK_TOXSPIKES},
+        'fieldeffect' : {'embed_dim' : 10, 'dict_size' : MAX_TOK_FIELD},
+    }
+
+    d_player = 128
+    d_opp = 64
+    d_field = 32
+    model = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field)
+
+    p1 = LearningAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, network=model)
     p2 = RandomAgent(id='p2', name='Blue')
     for i in range(EPOCHS):
         for j in range(BATCH_SIZE):
