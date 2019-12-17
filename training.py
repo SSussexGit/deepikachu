@@ -24,7 +24,7 @@ from data_pokemon import *
 import neural_net
 from neural_net import DeePikachu0
 
-EPOCHS = 2 #30
+EPOCHS = 30
 MAX_GAME_LEN = 400 #max length is 200 but if you u-turn every turn you move twice per turn
 BATCH_SIZE = 2 #100
 ACTION_SPACE_SIZE = 10 #4 moves and 6 switches
@@ -221,41 +221,44 @@ class LearningAgent(VPGBuffer, DefaultAgent):
 
         if(self.network == None):
             if (valid_actions == []):
+                raise ValueError("no valid actions")
                 action = copy.deepcopy(ACTION['default'])
             else:
                 action = random.choice(valid_actions)
             value = 0
             logp = np.log(1/min(1, len(valid_actions)))
         else:
-            if (valid_actions == []):
-                value = 0
-                action = copy.deepcopy(ACTION['default'])
-            else:
-                is_teampreview = ('teamspec' in valid_actions[0])
-                np_state = create_2D_state(1) #initialize an empty np state to update
-                np_state = self.construct_np_state_from_python_state(np_state, self.state)
-                policy_tensor, value_tensor = self.network(np_state)
-                value = value_tensor[0]
 
-                if is_teampreview:
-                    policy_tensor[0][0:4] *= 0
+            with torch.no_grad():
+                if (valid_actions == []):
+                    raise ValueError("no valid actions")
+                    value = 0
+                    action = copy.deepcopy(ACTION['default'])
                 else:
-                    for i in np.arange(10):
-                        if int_to_action(i) not in valid_actions:
-                            policy_tensor[0][i] *= 0
+                    is_teampreview = ('teamspec' in valid_actions[0])
+                    np_state = create_2D_state(1) #initialize an empty np state to update
+                    np_state = self.construct_np_state_from_python_state(np_state, self.state)
+                    policy_tensor, value_tensor = self.network(np_state)
+                    value = value_tensor[0]
+                    if is_teampreview:
+                        policy_tensor[0][0:4] *= 0
+                    else:
+                        for i in np.arange(10):
+                            if int_to_action(i) not in valid_actions:
+                                policy_tensor[0][i] *= 0
 
-                policy = policy_tensor.cpu().detach().numpy()[0]    
-                policy /= np.sum(policy)
+                    policy = policy_tensor.cpu().detach().numpy()[0]    
+                    policy /= np.sum(policy)
 
-                #check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
-                if is_teampreview:
-                    action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = True)
-                else:
-                    action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = False)
-            
+                    #check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
+                    if is_teampreview:
+                        action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = True)
+                    else:
+                        action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = False)
+                
 
-            #save logpaction in buffer (not really needed since it gets recomputed)
-            logp = np.log(1/min(1, len(valid_actions)))
+                #save logpaction in buffer (not really needed since it gets recomputed)
+                logp = np.log(1/min(1, len(valid_actions)))
 
 
         self.store_in_buffer(self.state, action, value, logp, valid_actions)
@@ -309,43 +312,46 @@ if __name__ == '__main__':
     Trains LearningAgent vs RandomAgent
     '''
     state_embedding_settings = {
-        'pokemon' :     {'embed_dim' : 100, 'dict_size' : neural_net.MAX_TOK_POKEMON},
-        'type' :        {'embed_dim' : 50, 'dict_size' : neural_net.MAX_TOK_TYPE},
-        'move' :        {'embed_dim' : 50, 'dict_size' : neural_net.MAX_TOK_MOVE},
-        'move_type' :   {'embed_dim' : 50, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
-        'ability' :     {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_ABILITY},
-        'item' :        {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_ITEM},
-        'condition' :   {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_CONDITION},
-        'weather' :     {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_WEATHER},
-        'alive' :       {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_ALIVE},
-        'disabled' :    {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_DISABLED},
-        'spikes' :      {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_SPIKES},
-        'toxicspikes' : {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_TOXSPIKES},
-        'fieldeffect' : {'embed_dim' : 10, 'dict_size' : neural_net.MAX_TOK_FIELD},
+        'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
+        'type' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_TYPE},
+        'move' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE},
+        'move_type' :   {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
+        'ability' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ABILITY},
+        'item' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ITEM},
+        'condition' :   {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_CONDITION},
+        'weather' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_WEATHER},
+        'alive' :       {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ALIVE},
+        'disabled' :    {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_DISABLED},
+        'spikes' :      {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_SPIKES},
+        'toxicspikes' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_TOXSPIKES},
+        'fieldeffect' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_FIELD},
     }
 
-    d_player = 128
-    d_opp = 64
-    d_field = 32
+    d_player = 16
+    d_opp = 16
+    d_field = 16
 
     p1 = LearningAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, 
         network=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0))
     p2 = RandomAgent(id='p2', name='Blue')
 
-
     optimizer = optim.Adam(p1.network.parameters(), lr=0.001, weight_decay=1e-4)
     value_loss_fun = nn.MSELoss(reduction='mean')
-    train_v_iters = 40
+    train_v_iters = 3
 
     for i in range(EPOCHS):
 
         print('Epoch: ', i)
+        starttime = time.time()
 
         for j in range(BATCH_SIZE): 
             game_coordinator.run_learning_episode(p1, p2)
             p1.clear_history()
             p2.clear_history()
             p1.end_traj()
+
+        endttime = time.time()
+        
 
         states, actions, advs, rtgs, logps, valid_actions = p1.get()
 
@@ -357,21 +363,24 @@ if __name__ == '__main__':
 
         total_traj_len = actions.shape[0]
 
+        print('Ave move comp time: ', (endttime - starttime) /  total_traj_len)
+
         # policy step 
-        print('Policy step')
         optimizer.zero_grad()
         policy_tensor, value_tensor = p1.network(states) # (batch, 10), (batch, )
            
         valid_policy_tensor = torch.mul(valid_actions, policy_tensor) 
         valid_policy_tensor /= torch.sum(valid_policy_tensor, dim=1, keepdim=True)
         logp_action_taken = torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
-        loss = torch.dot(logp_action_taken, advs) / total_traj_len
+        if(i > 10):
+            loss = torch.dot(logp_action_taken, advs) / total_traj_len
+        else:
+            loss = torch.dot(logp_action_taken, rtgs) / total_traj_len
 
         loss.backward()
         optimizer.step()    
 
         # value_step
-        print('Value steps')
         for t in range(train_v_iters):
             optimizer.zero_grad()
             policy_tensor, value_tensor = p1.network(states)  # (batch, 10), (batch, )

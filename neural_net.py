@@ -8,6 +8,7 @@ import copy
 from pprint import pprint
 import math
 import state
+import time
 
 # embeddings
 MAX_TOK_POKEMON      = 893
@@ -428,7 +429,6 @@ class MoveRepresentation0(nn.Module):
 
         self.d_out = d_out
         self.cat_dim = 3 * d_out + 2
-        self.cat_dim += 7 # boosts
 
         self.final = nn.Sequential(
             FeedForward0(self.cat_dim, self.cat_dim, d_out),
@@ -436,19 +436,15 @@ class MoveRepresentation0(nn.Module):
             ResidualFeedForward0(d_out, d_out, dropout=dropout),
         )
 
-    def forward(self, x, boosts):
+    def forward(self, x):
        
         h = [
              self.move(x['moveid']),
              self.move_type(x['movetype']),
              self.disabled(x['disabled']),
              x['maxpp'],
-             x['pp'],
-             boosts
+             x['pp']
         ]
-
-        # for i in h:
-        #     print(i.dtype, i.shape)
 
         h = torch.cat(h, dim=1)
         assert(h.shape[1] == self.cat_dim)
@@ -500,7 +496,7 @@ class PokemonRepresentation0(nn.Module):
         x = pokemon
 
         # order equivariant move representations
-        moves = torch.stack([self.move_embed(x['moves'][i], boosts) for i in range(4)], dim=1) # bs, moves, d
+        moves = torch.stack([self.move_embed(x['moves'][i]) for i in range(4)], dim=1) # bs, moves, d
         moves_equivariant = self.move_relate(moves)
 
         # order invariant deep sets representation of all moves
@@ -563,7 +559,7 @@ class PlayerRepresentation0(nn.Module):
         self.final = nn.Sequential(
             FeedForward0(2 * d_out, 2 * d_out, d_out),
             ResidualFeedForward0(d_out, d_out, dropout=dropout),
-            ResidualFeedForward0(d_out, d_out, dropout=dropout),
+            # ResidualFeedForward0(d_out, d_out, dropout=dropout),
         )
         
         
@@ -586,12 +582,14 @@ class PlayerRepresentation0(nn.Module):
 
         # active pokemon representation
         # (invariant, equivariant)
+
         active_pokemon, moves_equivariant = self.active_pokemon(x['active'], active_boosts)
 
         # team pokemon representation (equivariant move reps are discarded for pokemon reps)
         # equivariant  
         team_pokemon = torch.stack([self.team_pokemon(x['team'][i], team_boosts)[0] for i in range(6)], dim=1)
         team_pokemon_equivariant = self.team_pokemon_relate(team_pokemon)
+
         # invariant
         team = self.team_DS(team_pokemon_equivariant)
 
@@ -609,20 +607,24 @@ Final net
 
 class DeePikachu0(nn.Module):
     '''Value and Policy Net'''
-    def __init__(self, state_embedding_settings, d_player=128, d_opp=64, d_field=32, dropout=0.1):
+    def __init__(self, state_embedding_settings, d_player=128, d_opp=64, d_field=32, dropout=0.1, softmax=True):
         super(DeePikachu0, self).__init__()
 
         self.d_player = d_player
         self.d_opp = d_opp
         self.d_field = d_field
+        self.softmax = softmax
 
         d_hidden = d_player + d_opp + d_field
+        
         
         self.state_embedding = State(state_embedding_settings)
 
         # major hidden state 
         self.player = PlayerRepresentation0(d_out=d_player, s=state_embedding_settings)
+
         self.opponent = PlayerRepresentation0(d_out=d_opp, s=state_embedding_settings)
+
         self.field = FieldRepresentation0(d_out=d_field, s=state_embedding_settings)
 
         self.combine = nn.Sequential(
@@ -639,12 +641,11 @@ class DeePikachu0(nn.Module):
         self.policy = nn.Sequential(
             ResidualSelfAttention0(heads=4, d_model=d_player, dropout=dropout),
             FeedForward0(d_player, d_player, 1, dropout=dropout),
-            nn.Softmax(dim=1)
         )
         
     def forward(self, x):
-
-        state = copy.deepcopy(x) # embedding is modified inplace
+        
+        state = copy.deepcopy(x) # embedding is put inplace
         state = self.state_embedding(state)
 
         # player 
@@ -671,9 +672,13 @@ class DeePikachu0(nn.Module):
 
         # move 0, ..., move 3, pokemon 0, ..., pokemon 5
         all_options = torch.cat([move_options, pokemon_options], dim=1)
-        action_probs = self.policy(all_options).squeeze(dim=2)
+        scores = self.policy(all_options).squeeze(dim=2)
 
-        return action_probs, value
+        if self.softmax:
+            action_probs = F.softmax(scores, dim=1)
+            return action_probs, value
+        else:
+            return scores, value
 
 
 
