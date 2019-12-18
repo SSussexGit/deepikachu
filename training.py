@@ -25,7 +25,7 @@ import neural_net
 from neural_net import DeePikachu0
 
 EPOCHS = 30
-MAX_GAME_LEN = 400 #max length is 200 but if you u-turn every turn you move twice per turn
+MAX_GAME_LEN = 4000 #max length is 200 but if you u-turn every turn you move twice per turn
 BATCH_SIZE = 10 #100
 ACTION_SPACE_SIZE = 10 #4 moves and 6 switches
 
@@ -168,6 +168,8 @@ class LearningAgent(VPGBuffer, DefaultAgent):
 
         self.network = network
         self.wins = 0
+        self.warmup = False
+        self.minibatch_size = 100
 
     def recurse_store_state(self, state_buffer, state, index):
         '''
@@ -307,6 +309,7 @@ class SACAgent(LearningAgent):
         '''
         Uses a Q function instead of a policy. For SAC take exp of "policy"
         '''
+
         self.request_update(request.message)
         message = request.message['request_dict']
 
@@ -314,9 +317,8 @@ class SACAgent(LearningAgent):
 
         #first get our valid action space
         valid_actions = get_valid_actions(self.state, message)
-        
 
-        if(self.network == None):
+        if(p1.warmup or self.network == None):
             if (valid_actions == []):
                 action = copy.deepcopy(ACTION['default'])
             else:
@@ -371,11 +373,11 @@ class SACAgent(LearningAgent):
                 state_buffer[field] = state_buffer[field][idxs]
         return state_buffer
 
-    def get(self, minibatch_size = 10):
+    def get(self):
         '''
         Call after a batch to return a sample from the buffer
         '''
-        idxs = np.random.randint(0, self.total_tuples, size=minibatch_size)
+        idxs = np.random.randint(0, self.total_tuples, size=self.minibatch_size)
         # nornalize advantage values to mean 0 std 1
         #adv_mean = np.mean(self.adv_buffer)
         #adv_std = np.std(self.adv_buffer)
@@ -450,20 +452,29 @@ if __name__ == '__main__':
     d_field = 16
 
     p1 = SACAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, 
-        network=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0, softmax=False))
+        network=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.5, softmax=False))
     p2 = RandomAgent(id='p2', name='Blue')
 
-    optimizer = optim.Adam(p1.network.parameters(), lr=0.001, weight_decay=1e-4)
+    optimizer = optim.Adam(p1.network.parameters(), lr=0.01, weight_decay=1e-4)
     value_loss_fun = nn.MSELoss(reduction='mean')
 
     train_update_iters = 5
 
     alpha = 0.05
+    warm_up = 10 #number of epochs playing randomly
+    minibatch_size = 200
+    p1.minibatch_size = minibatch_size
 
     for i in range(EPOCHS):
 
         print('Epoch: ', i)
         starttime = time.time()
+
+        if(i > warm_up):
+            p1.warmup = False
+        else:
+            p1.warmup = True
+
 
         for j in range(BATCH_SIZE): 
             game_coordinator.run_learning_episode(p1, p2)
@@ -474,58 +485,60 @@ if __name__ == '__main__':
 
         endttime = time.time()
 
+        if(p1.total_tuples > p1.minibatch_size)
+            for _ in range(train_update_iters):
+                states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1.get()
 
-        for _ in range(train_update_iters):
-            states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1.get()
+                actions = torch.tensor(actions, dtype=torch.long)
+                advs = torch.tensor(advs, dtype=torch.float)
+                rtgs = torch.tensor(rtgs, dtype=torch.float)
+                logps = torch.tensor(logps, dtype=torch.float)
+                valid_actions = torch.tensor(valid_actions, dtype=torch.long)
+                rews = torch.tensor(rews, dtype=torch.float)
+                dones = torch.tensor(dones, dtype=torch.long)
 
-            actions = torch.tensor(actions, dtype=torch.long)
-            advs = torch.tensor(advs, dtype=torch.float)
-            rtgs = torch.tensor(rtgs, dtype=torch.float)
-            logps = torch.tensor(logps, dtype=torch.float)
-            valid_actions = torch.tensor(valid_actions, dtype=torch.long)
-            rews = torch.tensor(rews, dtype=torch.float)
-            dones = torch.tensor(dones, dtype=torch.long)
+                total_traj_len = actions.shape[0]
 
-            total_traj_len = actions.shape[0]
+                # Q step
+                #print('Q step')
+                optimizer.zero_grad()
 
-            # Q step
-            #print('Q step')
-            optimizer.zero_grad()
+                with torch.no_grad():
+                    Q2_tensor, value2_tensor = p1.network(states2)
+        
 
-            with torch.no_grad():
-                Q2_tensor, value2_tensor = p1.network(states2)
-    
-
-            Q_tensor, value_tensor = p1.network(states) # (batch, 10), (batch, )       
-            valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor))  
-            Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
-            loss =  value_loss_fun(Q_action_taken, rews + p1.gamma * (1-dones) * value2_tensor) 
-            loss.backward()
-            optimizer.step()    
+                Q_tensor, value_tensor = p1.network(states) # (batch, 10), (batch, )       
+                valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor))  
+                Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
+                loss =  value_loss_fun(Q_action_taken, rews + p1.gamma * (1-dones) * value2_tensor) 
+                print(loss)
+                loss.backward()
+                optimizer.step()    
 
 
-            # Value_step
-            #print('Value step')
+                # Value_step
+                #print('Value step')
 
-            optimizer.zero_grad()
-            with torch.no_grad():
-                Q_tensor, _ = p1.network(states) 
-                
+                optimizer.zero_grad()
+                with torch.no_grad():
+                    Q_tensor, _ = p1.network(states) 
+                    
 
-            _, value_tensor = p1.network(states) 
+                _, value_tensor = p1.network(states) 
 
-            valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor)) 
-            valid_policy_tensor = valid_Q_tensor / torch.sum(valid_Q_tensor, dim=1, keepdim=True)
+                valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor)) 
+                valid_policy_tensor = valid_Q_tensor / torch.sum(valid_Q_tensor, dim=1, keepdim=True)
 
-            target = Q_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
-            loss = value_loss_fun(target, value_tensor)
-
-            loss.backward()
-            optimizer.step()
+                target = Q_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
+                loss = value_loss_fun(target, value_tensor)
+                print(loss)
+                loss.backward()
+                optimizer.step()
 
         # End epoch
-        win_rate = p1.wins/ ((i+1)*BATCH_SIZE) #total win rate over all games
+        win_rate = p1.wins/ BATCH_SIZE #total win rate over all games
         print('Win rate: ' + str(win_rate))
+        p1.wins = 0
         #p1.empty_buffer()
 
 

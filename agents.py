@@ -267,19 +267,24 @@ class DefaultAgent:
             if(pokemon_dict['pokemon_id'] == pokemon_token):
                 none_list.append(pokemon_dict_index)
             #make all the active status false
+                
             self.state['opponent']['team'][pokemon_dict_index]['active'] = False
 
         #if already in the team then just update at that location 
         if pokemon_location != None:
-            self.state['opponent']['team'][pokemon_location]['active'] = True 
+            if(message['id'] != 'poke'):
+                self.state['opponent']['team'][pokemon_location]['active'] = True 
             
         else:
             if(len(none_list) == 0):
                 raise ValueError("Opponent's pokemon not seen in their team and team is full")
             pokemon_location = none_list[0]
-            self.state['opponent']['active'] = self.state['opponent']['team'][pokemon_location]
+            
             self.state['opponent']['team'][pokemon_location]['pokemon_id'] = pokedex_data[game_name_to_dex_name(pokemon_string)]['num']
-            self.state['opponent']['team'][pokemon_location]['active'] = True 
+            if(message['id'] != 'poke'):
+                #set to active unless its a teampreview thing
+                self.state['opponent']['active'] = self.state['opponent']['team'][pokemon_location]
+                self.state['opponent']['team'][pokemon_location]['active'] = True 
             #if not in the team yet need to fill up the slots with everything
             types_list = pokedex_data[game_name_to_dex_name(pokemon_string)]['types']
             
