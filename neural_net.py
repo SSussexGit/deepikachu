@@ -10,6 +10,8 @@ import math
 import state
 import time
 
+DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
 # embeddings
 MAX_TOK_POKEMON      = 893
 MAX_TOK_TYPE         = 20
@@ -26,10 +28,10 @@ MAX_TOK_SPIKES       = 4
 MAX_TOK_TOXSPIKES    = 3
 
 # imputations
-VAL_STAT =     np.array([2/8, 2/7, 2/6, 2/5, 2/4, 2/3, 2/2, 3/2, 4/2, 5/2, 6/2, 7/2, 8/2])
-VAL_ACCURACY = np.array([3/9, 3/8, 3/7, 3/6, 3/5, 3/4, 3/3, 4/3, 5/3, 6/3, 7/3, 8/3, 9/3])
-VAL_EVASION =  np.flip(VAL_ACCURACY)
-VAL_OFFSET =   np.array(6)
+VAL_STAT =     torch.tensor([2/8, 2/7, 2/6, 2/5, 2/4, 2/3, 2/2, 3/2, 4/2, 5/2, 6/2, 7/2, 8/2])
+VAL_ACCURACY = torch.tensor([3/9, 3/8, 3/7, 3/6, 3/5, 3/4, 3/3, 4/3, 5/3, 6/3, 7/3, 8/3, 9/3])
+VAL_EVASION =  torch.flip(VAL_ACCURACY, dims=[0])
+VAL_OFFSET =   torch.tensor([6], dtype=torch.long)
 
 FIELD_EFFECTS = [ # all true/false
     'trickroom',
@@ -94,7 +96,7 @@ class State(torch.nn.Module):
         # manual impuations
         self.accuracy_fields = set(['accuracy'])
         self.evasion_fields = set(['evasion'])
-        self.opp_active_state = set(['opponent'])
+        self.opponent_field = set(['opponent'])
 
         # field effect handled differently than above main embeddings
         self.fieldeffect_fields = set(FIELD_EFFECTS)
@@ -133,71 +135,72 @@ class State(torch.nn.Module):
     #     return torch.tensor(1) if b else torch.tensor(0) 
 
     def __recursive_replace(self, x):
+
         '''Recursively replaces tokens with embeddings in dict x'''
         for key, value in x.items():
-            # if dict, not at leaf yet, so recursively replace
-            if isinstance(value, dict):
+            # special case: opponent subdict (manual stat imputation in addition to recursive replace)
+            if key in self.opponent_field:
+                # also embeddings in subdict
                 x[key] = self.__recursive_replace(value)
-
+                
+                # impute boosted stats for opponent
+                for a, b in zip(['atk', 'def','spa','spd','spe'], 
+                                ['oppatk', 'oppdef','oppspa','oppspd','oppspe']):
+                    x[key]['active']['stats'][a] = (VAL_STAT[VAL_OFFSET + x[key]['boosts'][b].long()] * 
+                        x[key]['active']['stats'][a]).float().to(DEVICE)
+                           
+            # if dict, not at leaf yet, so recursively replace
+            elif isinstance(value, dict):
+                x[key] = self.__recursive_replace(value)
+            
             # if int, we possibly need an embedding
             elif isinstance(value, np.ndarray):
                 if key in self.pokemon_fields:
-                    x[key] = self.pokemon_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                    x[key] = self.pokemon_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.type_fields:
-                    x[key] = self.type_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                    x[key] = self.type_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.move_fields:
-                    x[key] = self.move_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                    x[key] = self.move_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.move_type_fields:
-                    x[key] = self.move_type_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                    x[key] = self.move_type_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.ability_fields:
-                    x[key] = self.ability_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                    x[key] = self.ability_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.item_fields:
-                    x[key] = self.item_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                    x[key] = self.item_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.condition_fields:
-                    x[key] = self.condition_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                    x[key] = self.condition_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.weather_fields:
-                    x[key] = self.weather_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                    x[key] = self.weather_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.alive_fields:
-                    x[key] = self.alive_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                    x[key] = self.alive_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.disabled_fields:
-                    x[key] = self.disabled_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                    x[key] = self.disabled_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.spikes_fields:
                     if key == 'spikes':
-                        x[key] = self.spikes_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                        x[key] = self.spikes_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                     else:
-                        x[key] = self.spikesopp_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                        x[key] = self.spikesopp_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.toxicspikes_fields:
                     if key == 'toxicspikes':
-                        x[key] = self.toxicspikes_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                        x[key] = self.toxicspikes_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                     else:
-                        x[key] = self.toxicspikesopp_embedding(torch.tensor(value, dtype=torch.long))#.unsqueeze(1)
+                        x[key] = self.toxicspikesopp_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 # special: need to find correct embedding in list
                 elif key in self.fieldeffect_fields:
-                    x[key] = self.fieldeffect_embeddings[self.field_idx_dict[key]](torch.tensor(value, dtype=torch.long))
+                    x[key] = self.fieldeffect_embeddings[self.field_idx_dict[key]](torch.tensor(value, dtype=torch.long, device=DEVICE))
 
                 # manual imputations
                 elif key in self.accuracy_fields:
-                    x[key] = torch.tensor(VAL_ACCURACY[VAL_OFFSET + value], dtype=torch.float).unsqueeze(1)
+                    x[key] = (VAL_ACCURACY[VAL_OFFSET + torch.tensor(value)]).unsqueeze(1).float().to(DEVICE)
                 elif key in self.evasion_fields:
-                    x[key] = torch.tensor(VAL_EVASION[VAL_OFFSET + value], dtype=torch.float).unsqueeze(1)
-
-                # opponent subdict
-                elif key in self.opp_active_state:
-                    # also embeddings in subdict
-                    x[key] = self.__recursive_replace(value)
-
-                    # impute boosted stats for opponent
-                    for a, b in zip(['ask', 'def','spa','spd','spe'], 
-                                    ['oppatk', 'oppdef','oppspa','oppspd','oppspe']):
-                        x[key]['active']['stats'][a] = torch.tensor([
-                            VAL_STAT[VAL_OFFSET + x[key]['active']['boosts'][a]] * 
-                            x[key]['active']['stats'][b]], dtype=torch.float).unsqueeze(0)
+                    x[key] = (VAL_EVASION[VAL_OFFSET + torch.tensor(value)]).unsqueeze(1).float().to(DEVICE)
+                    
 
                 # regular value, no embedding necessary
                 else:
-                    x[key] = torch.tensor(value, dtype=torch.float).unsqueeze(1)
+                    x[key] = torch.tensor(value, dtype=torch.float, device=DEVICE).unsqueeze(1)
 
-                # print(x[key].shape, key) # shape debugging
+                # print(key, x[key].shape, key) # shape debugging
 
             # if neither int nor dict, invalid state dict formatting
             else:
