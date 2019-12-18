@@ -23,7 +23,7 @@ from training import LearningAgent, int_to_action, action_to_int
 from game_coordinator import *
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
+VERBOSE = True
 MAX_GAME_LEN = 400 #max length is 200 but if you u-turn every turn you move twice per turn
 
 '''
@@ -130,6 +130,9 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 
 	ended, ended_ctr = [False for _ in range(K)], 0
 
+	if VERBOSE:
+		print('[Game threads ended] : ', end='', flush=True)
+
 	# regular game flow
 	while True:
 
@@ -155,19 +158,19 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 			if not p1_waiting_for_request_processing[k] and not p2_waiting_for_request_processing[k] and not ended[k]:
 				if 'win' in message_ids[k]:
 					# terminate process
-					if ended_ctr == 0:
-						print(f'[Games ended] : {k}', end='', flush=True)
-					else:
-						print(f', {k}', end='', flush=True)
+					if VERBOSE:
+						if ended_ctr == 0:
+							print(f'{k}', end='', flush=True)
+						elif ended_ctr == K - 1:
+							print(f', {k}', end='\n', flush=True)
+						else:
+							print(f', {k}', end='', flush=True)
 
 					ended[k] = True
 					ended_ctr += 1
 					sim[k].terminate()
 					sim[k].stdin.close()
 
-					if ended_ctr == K:
-						print('\n', end='', flush=True)
-						
 
 		# check what games are still running
 		if ended_ctr == K:
@@ -300,7 +303,7 @@ if __name__ == '__main__':
 	p1net = p1net.to(DEVICE)
 
 	EPOCHS = 5
-	BATCH_SIZE = 3
+	BATCH_SIZE = 4
 	PARELLEL_PER_BATCH = 32
 	
 	# p1s/p2s are K individual agents storing game information, but the policy/value functions are computed by the same neural net
@@ -310,17 +313,30 @@ if __name__ == '__main__':
 	# run games
 	for i in range(EPOCHS):
 
-		print('Epoch: ', i)
+		print(' Epoch {:3d}: '.format(i))
 		starttime = time.time()
+
+		p1wins, p2wins = 0, 0
 
 		for j in range(BATCH_SIZE): 
 
 			winner_strings = run_parallel_learning_episode(PARELLEL_PER_BATCH, p1s, p2s, p1net)
-
+			
 			for k in range(PARELLEL_PER_BATCH):
+				if(winner_strings[k] == p1s[k].name):
+					p1wins += 1
+				if(winner_strings[k] == p2s[k].name):
+					p2wins += 1
 				p1s[k].clear_history()
 				p2s[k].clear_history()
-				print('Winner: ', winner_strings[k])
 
 		endttime = time.time()
-		print(f'[Epoch {i}: ave game comp time]  {(endttime - starttime)/(BATCH_SIZE * PARELLEL_PER_BATCH)} ')
+
+		p1winrate = p1wins / (p1wins + p2wins)
+		p2winrate = p2wins / (p1wins + p2wins)
+
+		print('[Epoch {:3d}: ave game comp time]  '.format(i) + '{0:.4f}'.format((endttime - starttime)/(BATCH_SIZE * PARELLEL_PER_BATCH)))
+		print()
+		print('Player 1 | win rate : {0:.4f} |  '.format(p1winrate) + 'wins : {:4d}  '.format(p1wins) + int(50 * p1winrate) * '#')
+		print('Player 2 | win rate : {0:.4f} |  '.format(p2winrate) + 'wins : {:4d}  '.format(p2wins) + int(50 * p2winrate) * '#')
+		print()
