@@ -400,112 +400,6 @@ def run_learning_episode(p1_agent, p2_agent):
     simulator.stdin.close()
     return winner_string
 
-def run_parallel_learning_episode(K, player1, player2):
-    '''
-    takes in 2 agents and plays K games between them in parallel (one forward pass)
-    '''
-
-
-    # opens: pokemon-showdown simulate-battle
-    simulator = subprocess.Popen('./pokemon-showdown simulate-battle', 
-        shell=True,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        universal_newlines=True)
-
-    # start game 
-    # simulator.stdin.write('>start {"formatid":"gen5randombattle"}\n')
-    simulator.stdin.write('>start {"formatid":"gen5ou"}\n')
-    simulator.stdin.write('>player p1 {"name":"' + player1.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
-    simulator.stdin.write('>player p2 {"name":"' + player2.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
-    # simulator.stdin.write('>player p1 {"name":"' + player1.name + '" }\n')
-    # simulator.stdin.write('>player p2 {"name":"' + player2.name +'" }\n')
-    
-    simulator.stdin.flush() 
-
-    game = []
-
-    outstanding_requests = []
-
-    # regular game flow
-    while True:
-    
-        # receive a simulation update and inform players
-        new_messages = receive_simulator_message(simulator)
-        message_ids = retrieve_message_ids_set(simulator, new_messages)
-        game += new_messages
-        
-        # for m in new_messages:
-        #     if not m.message['id'] == 'request':
-        #         print(m.original_str)
-        #     else:
-        #         pprint.pprint(m.message['request_dict'])
-        # for m in new_messages:
-        #     if m.message['id'] == 'error':
-        #         print(m.original_str)
-
-
-        # if at least one player is human print all messages (except requests)
-        if isinstance(player1, HumanAgent):
-            for m in filter_messages_by_player('p1', new_messages):
-                if not m.message['id'] == 'request':
-                    print(m.original_str)
-        if isinstance(player2, HumanAgent):
-            for m in filter_messages_by_player('p2', new_messages):
-                if not m.message['id'] == 'request':
-                    print(m.original_str)
-
-        # check if game is over    
-        if 'win' in message_ids:
-            break
-
-        # if there are requests, record them
-        if 'request' in message_ids: 
-            outstanding_requests += filter_messages_by_id('request', new_messages)
-        
-        # regular messages f this was a normal update, then send updates to players, and afterwards request move
-        else:
-            
-            # 1) update players on new information
-            player1.receive_game_update(filter_messages_by_player('p1', new_messages))
-            player2.receive_game_update(filter_messages_by_player('p2', new_messages))
-
-            # 2) request outstanding moves
-            while outstanding_requests:
-                m_request = outstanding_requests.pop(0)
-                player = m_request.adressed_players
-                if len(player) != 1:
-                    raise ValueError('requests should only be addressed to one player')
-                else:
-                    player = player[0]
-
-                # only request an action if request is not 'wait' request
-                # (requesting move ('active') or switch ('forceSwitch') or team ('teamPreview'))
-                if not 'wait' in m_request.message['request_dict'].keys():
-                    if player == 'p1':
-                        action = player1.process_request(m_request)
-                    else:
-                        action = player2.process_request(m_request)
-
-                    send_choice_to_simulator(simulator, action)
-            
-
-    # print results
-    game_over_message = filter_messages_by_id('win', game)[0]
-    winner_string = game_over_message.message['info_json']['winner']
-    if(winner_string == player1.name):
-        player1.won_game()
-    if(winner_string == player2.name):
-        player2.won_game()
-    #get the winning agent and set their reward based on the result
-
-    # pprint.pprint(game_over_message.message['info_json'])
-    #print(game_over_message.message['info_json'])
-
-    # terminate game
-    simulator.terminate()
-    simulator.stdin.close()
-    return winner_string
 
 if __name__ == '__main__':
 
@@ -516,12 +410,10 @@ if __name__ == '__main__':
     If not provied, use default agent
     '''
 
-    # p1, p2 = create_agents_from_argv(sys.argv)
 
     p1 = RandomAgent(id='p1', name='Red')
     p2 = RandomAgent(id='p2', name='Blue')
 
-    
     epochs = 5
     games_per_epoch = 3
 
@@ -537,112 +429,107 @@ if __name__ == '__main__':
             print('Winner: ', winner)
 
         endttime = time.time()
+
+
+
+# old code
+
+# # parse arguments and initialize players
+# SIMS = 1
+# for i in range(0, SIMS):
+#     print(f'Simulation # {i+1}/{SIMS}')
+
+#     # opens: pokemon-showdown simulate-battle
+#     simulator = subprocess.Popen('./pokemon-showdown simulate-battle', 
+#         shell=True,
+#         stdin=subprocess.PIPE,
+#         stdout=subprocess.PIPE,
+#         universal_newlines=True)
+
+#     # start game 
+#     # simulator.stdin.write('>start {"formatid":"gen5randombattle"}\n')
+#     simulator.stdin.write('>start {"formatid":"gen5ou"}\n')
+#     #simulator.stdin.write('>player p1 {"name":"' + player1.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
+#     #simulator.stdin.write('>player p2 {"name":"' + player2.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
+#     simulator.stdin.write('>player p1 {"name":"' + player1.name + '" }\n')
+#     simulator.stdin.write('>player p2 {"name":"' + player2.name +'" }\n')
     
+#     simulator.stdin.flush()	
 
+#     game = []
 
+#     outstanding_requests = []
 
-
-
-
-
-    # # parse arguments and initialize players
-    # SIMS = 1
-    # for i in range(0, SIMS):
-    #     print(f'Simulation # {i+1}/{SIMS}')
-
+#     # regular game flow
+#     while True:
+    
+#         # receive a simulation update and inform players
+#         new_messages = receive_simulator_message(simulator)
+#         message_ids = retrieve_message_ids_set(simulator, new_messages)
+#         game += new_messages
         
+#         # for m in new_messages:
+#         #     if not m.message['id'] == 'request':
+#         #         print(m.original_str)
+#         #     else:
+#         #         pprint.pprint(m.message['request_dict'])
+#         # for m in new_messages:
+#         #     if m.message['id'] == 'error':
+#         #         print(m.original_str)
 
-    #     # opens: pokemon-showdown simulate-battle
-    #     simulator = subprocess.Popen('./pokemon-showdown simulate-battle', 
-    #         shell=True,
-    #         stdin=subprocess.PIPE,
-    #         stdout=subprocess.PIPE,
-    #         universal_newlines=True)
 
-    #     # start game 
-    #     # simulator.stdin.write('>start {"formatid":"gen5randombattle"}\n')
-    #     simulator.stdin.write('>start {"formatid":"gen5ou"}\n')
-    #     #simulator.stdin.write('>player p1 {"name":"' + player1.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
-    #     #simulator.stdin.write('>player p2 {"name":"' + player2.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
-    #     simulator.stdin.write('>player p1 {"name":"' + player1.name + '" }\n')
-    #     simulator.stdin.write('>player p2 {"name":"' + player2.name +'" }\n')
+#         # if at least one player is human print all messages (except requests)
+#         if isinstance(player1, HumanAgent):
+#             for m in filter_messages_by_player('p1', new_messages):
+#                 if not m.message['id'] == 'request':
+#                     print(m.original_str)
+#         if isinstance(player2, HumanAgent):
+#             for m in filter_messages_by_player('p2', new_messages):
+#                 if not m.message['id'] == 'request':
+#                     print(m.original_str)
+
+#         # check if game is over    
+#         if 'win' in message_ids:
+#             break
+
+#         # if there are requests, record them
+#         if 'request' in message_ids: 
+#             outstanding_requests += filter_messages_by_id('request', new_messages)
         
-    #     simulator.stdin.flush()	
-
-    #     game = []
-
-    #     outstanding_requests = []
-
-    #     # regular game flow
-    #     while True:
-        
-    #         # receive a simulation update and inform players
-    #         new_messages = receive_simulator_message(simulator)
-    #         message_ids = retrieve_message_ids_set(simulator, new_messages)
-    #         game += new_messages
+#         # regular messages f this was a normal update, then send updates to players, and afterwards request move
+#         else:
             
-    #         # for m in new_messages:
-    #         #     if not m.message['id'] == 'request':
-    #         #         print(m.original_str)
-    #         #     else:
-    #         #         pprint.pprint(m.message['request_dict'])
-    #         # for m in new_messages:
-    #         #     if m.message['id'] == 'error':
-    #         #         print(m.original_str)
+#             # 1) update players on new information
+#             player1.receive_game_update(filter_messages_by_player('p1', new_messages))
+#             player2.receive_game_update(filter_messages_by_player('p2', new_messages))
 
+#             # 2) request outstanding moves
+#             while outstanding_requests:
+#                 m_request = outstanding_requests.pop(0)
+#                 player = m_request.adressed_players
+#                 if len(player) != 1:
+#                     raise ValueError('requests should only be addressed to one player')
+#                 else:
+#                     player = player[0]
 
-    #         # if at least one player is human print all messages (except requests)
-    #         if isinstance(player1, HumanAgent):
-    #             for m in filter_messages_by_player('p1', new_messages):
-    #                 if not m.message['id'] == 'request':
-    #                     print(m.original_str)
-    #         if isinstance(player2, HumanAgent):
-    #             for m in filter_messages_by_player('p2', new_messages):
-    #                 if not m.message['id'] == 'request':
-    #                     print(m.original_str)
+#                 # only request an action if request is not 'wait' request
+#                 # (requesting move ('active') or switch ('forceSwitch') or team ('teamPreview'))
+#                 if not 'wait' in m_request.message['request_dict'].keys():
+#                     if player == 'p1':
+#                         action = player1.process_request(m_request)
+#                     else:
+#                         action = player2.process_request(m_request)
 
-    #         # check if game is over    
-    #         if 'win' in message_ids:
-    #             break
-
-    #         # if there are requests, record them
-    #         if 'request' in message_ids: 
-    #             outstanding_requests += filter_messages_by_id('request', new_messages)
+#                     send_choice_to_simulator(simulator, action)
             
-    #         # regular messages f this was a normal update, then send updates to players, and afterwards request move
-    #         else:
-                
-    #             # 1) update players on new information
-    #             player1.receive_game_update(filter_messages_by_player('p1', new_messages))
-    #             player2.receive_game_update(filter_messages_by_player('p2', new_messages))
 
-    #             # 2) request outstanding moves
-    #             while outstanding_requests:
-    #                 m_request = outstanding_requests.pop(0)
-    #                 player = m_request.adressed_players
-    #                 if len(player) != 1:
-    #                     raise ValueError('requests should only be addressed to one player')
-    #                 else:
-    #                     player = player[0]
+#     # print results
+#     game_over_message = filter_messages_by_id('win', game)[0]
+    
+#     # pprint.pprint(game_over_message.message['info_json'])
+#     #print(game_over_message.message['info_json'])
 
-    #                 # only request an action if request is not 'wait' request
-    #                 # (requesting move ('active') or switch ('forceSwitch') or team ('teamPreview'))
-    #                 if not 'wait' in m_request.message['request_dict'].keys():
-    #                     if player == 'p1':
-    #                         action = player1.process_request(m_request)
-    #                     else:
-    #                         action = player2.process_request(m_request)
-
-    #                     send_choice_to_simulator(simulator, action)
-                
-
-    #     # print results
-    #     game_over_message = filter_messages_by_id('win', game)[0]
-        
-    #     # pprint.pprint(game_over_message.message['info_json'])
-    #     #print(game_over_message.message['info_json'])
-
-    #     # terminate game
-    #     simulator.terminate()
-    #     simulator.stdin.close()
-        
+#     # terminate game
+#     simulator.terminate()
+#     simulator.stdin.close()
+    
