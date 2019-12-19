@@ -50,10 +50,7 @@ class ParallelLearningAgent(LearningAgent):
 
 		if (valid_actions == []):
 			raise ValueError("no valid actions")
-		else:
-			np_state = create_2D_state(1) #initialize an empty np state to update
-			np_state = self.construct_np_state_from_python_state(np_state, self.state)
-
+		
 		return self.state, valid_actions
 
 

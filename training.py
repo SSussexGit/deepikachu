@@ -485,7 +485,7 @@ if __name__ == '__main__':
 
         endttime = time.time()
 
-        if(p1.total_tuples > p1.minibatch_size)
+        if(p1.total_tuples > p1.minibatch_size):
             for _ in range(train_update_iters):
                 states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1.get()
 
@@ -511,7 +511,7 @@ if __name__ == '__main__':
                 valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor))  
                 Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
                 loss =  value_loss_fun(Q_action_taken, rews + p1.gamma * (1-dones) * value2_tensor) 
-                print(loss)
+                #print(loss)
                 loss.backward()
                 optimizer.step()    
 
@@ -531,7 +531,7 @@ if __name__ == '__main__':
 
                 target = Q_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
                 loss = value_loss_fun(target, value_tensor)
-                print(loss)
+                #print(loss)
                 loss.backward()
                 optimizer.step()
 
