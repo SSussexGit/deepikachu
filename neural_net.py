@@ -638,13 +638,24 @@ class DeePikachu0(nn.Module):
         # value function
         self.value_function = FeedForward0(d_hidden, d_hidden, 1, dropout=dropout)
 
-        # policy 
-        self.moves_combine_hidden = FeedForward0(d_player + d_hidden, d_player + d_hidden, d_player, dropout=dropout)
-        self.pokemon_combine_hidden = FeedForward0(d_player + d_hidden, d_player + d_hidden, d_player, dropout=dropout)
-        self.policy = nn.Sequential(
-            ResidualSelfAttention0(heads=4, d_model=d_player, dropout=dropout),
-            FeedForward0(d_player, d_player, 1, dropout=dropout),
-        )
+        # Q function (heads 1 and 2) 
+        self.q_combine_moves_hidden = nn.ModuleList([
+            FeedForward0(d_player + d_hidden, d_player + d_hidden, d_player, dropout=dropout),
+            FeedForward0(d_player + d_hidden, d_player + d_hidden, d_player, dropout=dropout)])
+
+        self.q_combine_pokemon_hidden = nn.ModuleList([
+            FeedForward0(d_player + d_hidden, d_player + d_hidden, d_player, dropout=dropout),
+            FeedForward0(d_player + d_hidden, d_player + d_hidden, d_player, dropout=dropout)])
+            
+        self.q_function = nn.ModuleList([
+            nn.Sequential(
+                ResidualSelfAttention0(heads=4, d_model=d_player, dropout=dropout),
+                FeedForward0(d_player, d_player, 1, dropout=dropout),
+            ),
+            nn.Sequential(
+                ResidualSelfAttention0(heads=4, d_model=d_player, dropout=dropout),
+                FeedForward0(d_player, d_player, 1, dropout=dropout),
+            )])
         
     def forward(self, x):
         
@@ -663,26 +674,31 @@ class DeePikachu0(nn.Module):
         hidden = torch.cat([player, opponent, f], dim=1)
 
         # value function
-        value = self.value_function(hidden).squeeze(dim=1).sigmoid()
+        value = self.value_function(hidden).squeeze(dim=1)# .sigmoid() - apparently not done in practice
 
-        # policy: self attend to different options
-        move_options = self.moves_combine_hidden(torch.cat(
+        # q function: self attend to different action options 
+        moves_and_hidden = torch.cat(
             [moves_equivariant, 
-             hidden.unsqueeze(1).repeat((1, 4, 1))], dim=2))
-        pokemon_options = self.pokemon_combine_hidden(torch.cat(
+             hidden.unsqueeze(1).repeat((1, 4, 1))], 
+        dim=2)
+
+        pokemon_and_hidden = torch.cat(
             [team_pokemon_equivariant, 
-             hidden.unsqueeze(1).repeat((1, 6, 1))], dim=2))
+             hidden.unsqueeze(1).repeat((1, 6, 1))], 
+        dim=2)
 
-        # move 0, ..., move 3, pokemon 0, ..., pokemon 5
-        all_options = torch.cat([move_options, pokemon_options], dim=1)
-        scores = self.policy(all_options).squeeze(dim=2)
+        all_actions_A =  torch.cat([
+            self.q_combine_moves_hidden[0](moves_and_hidden), 
+            self.q_combine_pokemon_hidden[0](pokemon_and_hidden)], dim=1)
+        q_values_A = self.q_function[0](all_actions_A).squeeze(dim=2)# .sigmoid() - apparently not done in practice
 
-        if self.softmax:
-            action_probs = F.softmax(scores, dim=1)
-            return action_probs, value
-        else:
-            return scores, value
+        all_actions_B =  torch.cat([
+            self.q_combine_moves_hidden[1](moves_and_hidden), 
+            self.q_combine_pokemon_hidden[1](pokemon_and_hidden)], dim=1)
+        q_values_B = self.q_function[1](all_actions_B).squeeze(dim=2)# .sigmoid()- apparently not done in practice
 
+        return q_values_A, q_values_B, value
+        
 
 
 if __name__ == '__main__':

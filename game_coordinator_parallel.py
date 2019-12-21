@@ -301,7 +301,7 @@ if __name__ == '__main__':
 
 	EPOCHS = 5
 	BATCH_SIZE = 4
-	PARELLEL_PER_BATCH = 32
+	PARELLEL_PER_BATCH = 16
 	
 	# p1s/p2s are K individual agents storing game information, but the policy/value functions are computed by the same neural net
 	p1s = [ParallelLearningAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95) for _ in range(PARELLEL_PER_BATCH)]

@@ -504,10 +504,11 @@ if __name__ == '__main__':
                 optimizer.zero_grad()
 
                 with torch.no_grad():
-                    Q2_tensor, value2_tensor = p1.network(states2)
+                    Q2_tensor, _, value2_tensor = p1.network(states2)
         
 
-                Q_tensor, value_tensor = p1.network(states) # (batch, 10), (batch, )       
+                Q_tensor, _, value_tensor = p1.network(states) # (batch, 10), (batch, )       
+
                 valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor))  
                 Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
                 loss =  value_loss_fun(Q_action_taken, rews + p1.gamma * (1-dones) * value2_tensor) 
@@ -521,10 +522,10 @@ if __name__ == '__main__':
 
                 optimizer.zero_grad()
                 with torch.no_grad():
-                    Q_tensor, _ = p1.network(states) 
+                    Q_tensor, _, _ = p1.network(states) 
                     
 
-                _, value_tensor = p1.network(states) 
+                _, _, value_tensor = p1.network(states) 
 
                 valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor)) 
                 valid_policy_tensor = valid_Q_tensor / torch.sum(valid_Q_tensor, dim=1, keepdim=True)
