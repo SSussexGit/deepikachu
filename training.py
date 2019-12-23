@@ -300,6 +300,14 @@ class LearningAgent(VPGBuffer, DefaultAgent):
         
         return PlayerAction(self.id, action)
 
+    def spit(self):
+        """
+        returns the class buffers
+        """
+        idxs = np.arange(self.total_tuples)
+        return [self.recurse_index_state(copy.deepcopy(self.state_buffer), idxs), self.recurse_index_state(copy.deepcopy(self.state2_buffer), idxs), self.action_buffer[idxs], self.adv_buffer[idxs], 
+                self.rtg_buffer[idxs], self.logp_buffer[idxs], self.valid_actions_buffer[idxs], self.rew_buffer[idxs], self.done_buffer[idxs]]
+
 
 class SACAgent(LearningAgent):
     '''
@@ -318,7 +326,7 @@ class SACAgent(LearningAgent):
         #first get our valid action space
         valid_actions = get_valid_actions(self.state, message)
 
-        if(p1.warmup or self.network == None):
+        if(self.warmup or self.network == None):
             if (valid_actions == []):
                 action = copy.deepcopy(ACTION['default'])
             else:
@@ -333,7 +341,7 @@ class SACAgent(LearningAgent):
                 is_teampreview = ('teamspec' in valid_actions[0])
                 np_state = create_2D_state(1) #initialize an empty np state to update
                 np_state = self.construct_np_state_from_python_state(np_state, self.state)
-                policy_tensor, value_tensor = self.network(np_state)
+                policy_tensor, _, value_tensor = self.network(np_state)
                 value = value_tensor[0]  
 
                 policy_tensor = torch.exp(policy_tensor)
@@ -500,25 +508,25 @@ if __name__ == '__main__':
                 total_traj_len = actions.shape[0]
 
                 # Q step
-                #print('Q step')
+                print('Q step')
                 optimizer.zero_grad()
 
                 with torch.no_grad():
-                    Q2_tensor, _, value2_tensor = p1.network(states2)
+                    _, _, value2_tensor = p1.network(states2)
         
 
-                Q_tensor, _, value_tensor = p1.network(states) # (batch, 10), (batch, )       
+                Q_tensor, _, _ = p1.network(states) # (batch, 10), (batch, )       
 
                 valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor))  
                 Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
                 loss =  value_loss_fun(Q_action_taken, rews + p1.gamma * (1-dones) * value2_tensor) 
-                #print(loss)
+                print(loss)
                 loss.backward()
                 optimizer.step()    
 
 
                 # Value_step
-                #print('Value step')
+                print('Value step')
 
                 optimizer.zero_grad()
                 with torch.no_grad():
@@ -532,7 +540,7 @@ if __name__ == '__main__':
 
                 target = Q_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
                 loss = value_loss_fun(target, value_tensor)
-                #print(loss)
+                print(loss)
                 loss.backward()
                 optimizer.step()
 

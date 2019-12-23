@@ -674,7 +674,7 @@ class DeePikachu0(nn.Module):
         hidden = torch.cat([player, opponent, f], dim=1)
 
         # value function
-        value = self.value_function(hidden).squeeze(dim=1)# .sigmoid() - apparently not done in practice
+        value = self.value_function(hidden).squeeze(dim=1).sigmoid() # - apparently sigmoid not done in practice
 
         # q function: self attend to different action options 
         moves_and_hidden = torch.cat(
@@ -690,12 +690,12 @@ class DeePikachu0(nn.Module):
         all_actions_A =  torch.cat([
             self.q_combine_moves_hidden[0](moves_and_hidden), 
             self.q_combine_pokemon_hidden[0](pokemon_and_hidden)], dim=1)
-        q_values_A = self.q_function[0](all_actions_A).squeeze(dim=2)# .sigmoid() - apparently not done in practice
+        q_values_A = self.q_function[0](all_actions_A).squeeze(dim=2)#.sigmoid() #- apparently sigmoid not done in practice
 
         all_actions_B =  torch.cat([
             self.q_combine_moves_hidden[1](moves_and_hidden), 
             self.q_combine_pokemon_hidden[1](pokemon_and_hidden)], dim=1)
-        q_values_B = self.q_function[1](all_actions_B).squeeze(dim=2)# .sigmoid()- apparently not done in practice
+        q_values_B = self.q_function[1](all_actions_B).squeeze(dim=2)#.sigmoid() #- apparently sigmoid not done in practice
 
         return q_values_A, q_values_B, value
         
