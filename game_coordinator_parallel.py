@@ -311,6 +311,15 @@ if __name__ == '__main__':
 	p1s = [ParallelLearningAgent(id='p1', name='Red', size = 2000, gamma=0.99, lam=0.95) for _ in range(PARELLEL_PER_BATCH)]
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
+	optimizer = optim.Adam(p1net.parameters(), lr=0.01, weight_decay=1e-4)
+    value_loss_fun = nn.MSELoss(reduction='mean')
+
+    train_update_iters = 5
+
+    alpha = 0.05
+    warm_up = 3 #number of epochs playing randomly
+    minibatch_size = 200 #number of examples sampled in each update
+
 	# run games
 	for i in range(EPOCHS):
 
@@ -318,6 +327,11 @@ if __name__ == '__main__':
 		starttime = time.time()
 
 		p1wins, p2wins = 0, 0
+
+		if(i > warmup):
+			p1.warmup=False
+		else:
+			p1.warmup=True
 
 		for j in range(BATCH_SIZE): 
 
@@ -328,8 +342,58 @@ if __name__ == '__main__':
 					p1wins += 1
 				if(winner_strings[k] == p2s[k].name):
 					p2wins += 1
-				p1s[k].clear_history()
-				p2s[k].clear_history()
+				#p1s[k].clear_history()
+				#p2s[k].clear_history()
+
+			for _ in range(train_update_iters):
+                states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1.get()
+
+                actions = torch.tensor(actions, dtype=torch.long)
+                advs = torch.tensor(advs, dtype=torch.float)
+                rtgs = torch.tensor(rtgs, dtype=torch.float)
+                logps = torch.tensor(logps, dtype=torch.float)
+                valid_actions = torch.tensor(valid_actions, dtype=torch.long)
+                rews = torch.tensor(rews, dtype=torch.float)
+                dones = torch.tensor(dones, dtype=torch.long)
+
+                total_traj_len = actions.shape[0]
+
+                # Q step
+                #print('Q step')
+                optimizer.zero_grad()
+
+                with torch.no_grad():
+                    Q_nograd_tensor, _, value_nograd_tensor = p1.net(states2)
+        
+
+                Q1_tensor, _, value_tensor = p1.net(states) # (batch, 10), (batch, )       
+
+                valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q1_tensor))  
+                Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
+                loss =  value_loss_fun(Q_action_taken, rews + p1.gamma * (1-dones) * value_nograd_tensor) 
+                #print(loss)
+                loss.backward()
+                optimizer.step()    
+
+
+                # Value_step
+                #print('Value step')
+
+                optimizer.zero_grad()
+                with torch.no_grad():
+                    Q_nograd_tensor, _, _ = p1net(states) 
+                    
+
+                _, _, value_tensor = p1.network(states) 
+
+                valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_nograd_tensor)) 
+                valid_policy_tensor = valid_Q_tensor / torch.sum(valid_Q_nograd_tensor, dim=1, keepdim=True)
+
+                target = Q_nograd_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
+                loss = value_loss_fun(target, value_tensor)
+                #print(loss)
+                loss.backward()
+                optimizer.step()
 
 		endttime = time.time()
 
