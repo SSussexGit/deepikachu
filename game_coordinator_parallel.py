@@ -18,7 +18,7 @@ from data_pokemon import *
 import neural_net
 from neural_net import DeePikachu0
 
-from training import LearningAgent, int_to_action, action_to_int
+from training import LearningAgent, int_to_action, action_to_int, SACAgent
 
 from game_coordinator import *
 
@@ -33,7 +33,7 @@ Instead returns state that can be used for neural net
 '''
 This function then receives the output of the neural net and handles it, returning an action
 '''
-class ParallelLearningAgent(LearningAgent):
+class ParallelLearningAgent(SACAgent):
 
 	def __init__(self, id, size, name='Ash', gamma=0.99, lam=0.95):
 		# force network=None (can still later store neural net in self.network field)
@@ -54,16 +54,20 @@ class ParallelLearningAgent(LearningAgent):
 		return self.state, valid_actions
 
 
-	def process_request_receive_tensors(self, valid_actions, policy_tensor, value):
+	def process_request_receive_tensors(self, valid_actions, q_tensor, value):
 		is_teampreview = ('teamspec' in valid_actions[0])
+		q_tensor = np.exp(q_tensor)
+
 		if is_teampreview:
-			policy_tensor[0:4] *= 0
+			q_tensor[0:4] *= 0
 		else:
 			for i in np.arange(10):
 				if int_to_action(i) not in valid_actions:
-					policy_tensor[i] *= 0
+					q_tensor[i] *= 0
 
-		policy_tensor /= np.sum(policy_tensor)
+		
+		policy_tensor = q_tensor/np.sum(q_tensor)
+		
 
 		#check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
 		if is_teampreview:
@@ -132,7 +136,6 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 
 	# regular game flow
 	while True:
-
 		'''
 		Idea: simulate K games sequentially until each game has an outstanding request for p1 
 		Then forward pass through neural net in batch form 
@@ -231,11 +234,11 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 			# batch state processing
 			with torch.no_grad():
 				np_state_cat = recurse_cat_state(create_2D_state(len(running)), np_states)
-				policy_tensor, value_tensor = network(np_state_cat)
+				q_tensor, _, value_tensor = network(np_state_cat)
 
 			# finish up by sampling action
 			for idx, k in enumerate(running):
-				action = p1s[k].process_request_receive_tensors(valid_actions[idx], policy_tensor[idx].numpy(), value_tensor[idx].numpy())
+				action = p1s[k].process_request_receive_tensors(valid_actions[idx], q_tensor[idx].numpy(), value_tensor[idx].numpy())
 				send_choice_to_simulator(sim[k], action)
 
 			# if we are about to exit the loop, make sure fully handled games continue to be simulated
@@ -296,15 +299,16 @@ if __name__ == '__main__':
 	d_field = 8
 
 	# init neural net
-	p1net = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0)
+	p1net = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0, softmax=False)
 	p1net = p1net.to(DEVICE)
 
 	EPOCHS = 5
-	BATCH_SIZE = 4
-	PARELLEL_PER_BATCH = 16
+	BATCH_SIZE = 3
+	PARELLEL_PER_BATCH = 4
+	BUFFER_SIZE = 2000
 	
 	# p1s/p2s are K individual agents storing game information, but the policy/value functions are computed by the same neural net
-	p1s = [ParallelLearningAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95) for _ in range(PARELLEL_PER_BATCH)]
+	p1s = [ParallelLearningAgent(id='p1', name='Red', size = 2000, gamma=0.99, lam=0.95) for _ in range(PARELLEL_PER_BATCH)]
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
 	# run games
