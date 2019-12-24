@@ -179,7 +179,7 @@ class ParallelLearningAgent(SACAgent):
 						q_tensor[i] *= 0
 
 			policy_tensor = q_tensor/np.sum(q_tensor)
-			print(policy_tensor)
+			#print(policy_tensor)
 			#for debugging if we get nans
 			if(True in np.isnan(policy_tensor)):
 				print("valid actions:" + str(valid_actions))
@@ -248,7 +248,7 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 	for k in range(K):
 		sim[k].stdin.write('>start {"formatid":"gen5ou"}\n')
 		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
-		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team2 +'" }\n')
+		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
 		sim[k].stdin.flush() 
 
 	games = [[] for _ in range(K)]
@@ -429,30 +429,30 @@ if __name__ == '__main__':
 	d_field = 16
 
 	# init neural net
-	p1net = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.3, softmax=False)
+	p1net = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0, softmax=False)
 	p1net = p1net.to(DEVICE)
 
 	#p1net_val = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.3, softmax=False)
 	#p1net_val = p1net_val.to(DEVICE)
 
 	EPOCHS = 30
-	BATCH_SIZE = 5
+	BATCH_SIZE = 1
 	PARELLEL_PER_BATCH = 10
 	BUFFER_SIZE = 2000
-	gamma=1#0.99
+	gamma=0.99#0.99
 	lam = 0.95 #not used
 	
 	# p1s/p2s are K individual agents storing game information, but the policy/value functions are computed by the same neural net
-	p1s = [ParallelLearningAgent(id='p1', name='Red', size = 20000, gamma=gamma, lam=lam) for _ in range(PARELLEL_PER_BATCH)]
+	p1s = [ParallelLearningAgent(id='p1', name='Red', size = 2000, gamma=gamma, lam=lam) for _ in range(PARELLEL_PER_BATCH)]
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
-	alpha = 0.005
-	warmup = 2 #number of epochs playing randomly
-	minibatch_size = 200 #number of examples sampled in each update
+	alpha = 0.05
+	warmup = 0 #number of epochs playing randomly
+	minibatch_size = 10 #number of examples sampled in each update
 
-	replay = ExperienceReplay(size=20000, minibatch_size=minibatch_size)
+	replay = ExperienceReplay(size=4000, minibatch_size=minibatch_size)
 
-	optimizer = optim.Adam(p1net.parameters(), lr=0.01, weight_decay=1e-4)
+	optimizer = optim.Adam(p1net.parameters(), lr=0.001, weight_decay=1e-4)
 	#optimizer_val = optim.Adam(p1net_val.parameters(), lr=0.01, weight_decay=1e-4)
 	#optimizer_val = SWA(optimizer_val_base, swa_start=50, swa_freq=1, swa_lr=0.01)
 
@@ -476,6 +476,13 @@ if __name__ == '__main__':
 			for k in range(PARELLEL_PER_BATCH):
 				p1s[k].warmup=True
 
+		if(i%5 == 4):
+			for k in range(PARELLEL_PER_BATCH):
+				p1s[k].evalmode=True
+		else:
+			for k in range(PARELLEL_PER_BATCH):
+				p1s[k].evalmode=False
+
 		for j in range(BATCH_SIZE): 
 
 			winner_strings = run_parallel_learning_episode(PARELLEL_PER_BATCH, p1s, p2s, p1net)
@@ -486,6 +493,8 @@ if __name__ == '__main__':
 				if(winner_strings[k] == p2s[k].name):
 					p2wins += 1
 
+				p1s[k].clear_history()
+				p2s[k].clear_history()
 				p1s[k].end_traj()
 				#empty the player buffers into the experience replay
 				spitstart = time.time()
@@ -499,8 +508,7 @@ if __name__ == '__main__':
 				swallowend = time.time()
 				#print('Swallow time ' + '{0:.4f}'.format(swallowend - swallowstart))
 				
-				p1s[k].clear_history()
-				p2s[k].clear_history()
+				
 				p1s[k].empty_buffer()
 
 		for _ in range(train_update_iters):

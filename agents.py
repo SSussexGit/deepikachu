@@ -47,7 +47,7 @@ def get_valid_actions(state, message):
     # go through the pokemon to make updates to valid moves
     i = 1
     for pokemon_dict in message['side']['pokemon']:
-        if ((pokemon_dict['active'] == True) or (pokemon_dict['condition'] == '0 fnt') or (pokemon_dict['pokemon_id'] in [0, 1])):
+        if ((pokemon_dict['active'] == True) or (pokemon_dict['condition'] == '0 fnt')):
             #remove switching to the thing that is already active or if slot empty
             s = {'id':'switch', 'switchspec': str(i)}
             if(s in valid_list):
