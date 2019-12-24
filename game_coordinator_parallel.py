@@ -9,10 +9,10 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
-from torchcontrib.optim import SWA
 import pprint
 import copy
 import teams_data
+import csv
 
 # import custom structures (like MESSAGE, ACTION) and all agents
 from custom_structures import *
@@ -407,6 +407,8 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 
 
 if __name__ == '__main__':
+	torch.manual_seed(42)
+	np.random.seed(42)
 
 	state_embedding_settings = {
 		'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
@@ -435,22 +437,22 @@ if __name__ == '__main__':
 	#p1net_val = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.3, softmax=False)
 	#p1net_val = p1net_val.to(DEVICE)
 
-	EPOCHS = 30
-	BATCH_SIZE = 1
-	PARELLEL_PER_BATCH = 10
+	EPOCHS = 100
+	BATCH_SIZE = 10
+	PARELLEL_PER_BATCH = 16
 	BUFFER_SIZE = 2000
 	gamma=0.99#0.99
 	lam = 0.95 #not used
 	
 	# p1s/p2s are K individual agents storing game information, but the policy/value functions are computed by the same neural net
-	p1s = [ParallelLearningAgent(id='p1', name='Red', size = 2000, gamma=gamma, lam=lam) for _ in range(PARELLEL_PER_BATCH)]
+	p1s = [ParallelLearningAgent(id='p1', name='Red', size = 20000, gamma=gamma, lam=lam) for _ in range(PARELLEL_PER_BATCH)]
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
 	alpha = 0.05
 	warmup = 0 #number of epochs playing randomly
-	minibatch_size = 10 #number of examples sampled in each update
+	minibatch_size = 500 #number of examples sampled in each update
 
-	replay = ExperienceReplay(size=4000, minibatch_size=minibatch_size)
+	replay = ExperienceReplay(size=80000, minibatch_size=minibatch_size)
 
 	optimizer = optim.Adam(p1net.parameters(), lr=0.001, weight_decay=1e-4)
 	#optimizer_val = optim.Adam(p1net_val.parameters(), lr=0.01, weight_decay=1e-4)
@@ -458,9 +460,10 @@ if __name__ == '__main__':
 
 	value_loss_fun = nn.MSELoss(reduction='mean')
 
-	train_update_iters = 5
+	train_update_iters = 10
 	max_winrate = 0
 
+	win_array = []
 	# run games
 	for i in range(EPOCHS):
 
@@ -475,13 +478,6 @@ if __name__ == '__main__':
 		else:
 			for k in range(PARELLEL_PER_BATCH):
 				p1s[k].warmup=True
-
-		if(i%5 == 4):
-			for k in range(PARELLEL_PER_BATCH):
-				p1s[k].evalmode=True
-		else:
-			for k in range(PARELLEL_PER_BATCH):
-				p1s[k].evalmode=False
 
 		for j in range(BATCH_SIZE): 
 
@@ -580,11 +576,6 @@ if __name__ == '__main__':
 			
 			loss.backward()
 			optimizer.step()
-			print(loss)
-
-			#optimizer_val.bn_update(p1net_val, model)
-			#optimizer_val.swap_swa_sgd()
-
 			
 
 		endttime = time.time()
@@ -592,15 +583,56 @@ if __name__ == '__main__':
 		p1winrate = p1wins / (p1wins + p2wins)
 		p2winrate = p2wins / (p1wins + p2wins)
 
-		'''
-		if(p1winrate > max_winrate):
-			torch.save(p1net.state.dict(), '')
-		'''
+		#print('[Epoch {:3d}: ave game comp time]  '.format(i) + '{0:.4f}'.format((endttime - starttime)/(BATCH_SIZE * PARELLEL_PER_BATCH)))
+		#print()
+		#print('Player 1 | win rate : {0:.4f} |  '.format(p1winrate) + 'wins : {:4d}  '.format(p1wins) + int(50 * p1winrate) * '#')
+		#print('Player 2 | win rate : {0:.4f} |  '.format(p2winrate) + 'wins : {:4d}  '.format(p2wins) + int(50 * p2winrate) * '#')
+		#print()
 
-		max_winrate = max(p1winrate, max_winrate)
+		#do an eval round
+		if(i%5 == 4):
+			for k in range(PARELLEL_PER_BATCH):
+				p1s[k].evalmode=True
 
-		print('[Epoch {:3d}: ave game comp time]  '.format(i) + '{0:.4f}'.format((endttime - starttime)/(BATCH_SIZE * PARELLEL_PER_BATCH)))
-		print()
-		print('Player 1 | win rate : {0:.4f} |  '.format(p1winrate) + 'wins : {:4d}  '.format(p1wins) + int(50 * p1winrate) * '#')
-		print('Player 2 | win rate : {0:.4f} |  '.format(p2winrate) + 'wins : {:4d}  '.format(p2wins) + int(50 * p2winrate) * '#')
-		print()
+			p1wins, p2wins = 0, 0
+
+			for j in range(BATCH_SIZE): 
+
+				winner_strings = run_parallel_learning_episode(PARELLEL_PER_BATCH, p1s, p2s, p1net)
+				
+				for k in range(PARELLEL_PER_BATCH):
+					if(winner_strings[k] == p1s[k].name):
+						p1wins += 1
+					if(winner_strings[k] == p2s[k].name):
+						p2wins += 1
+
+					p1s[k].clear_history()
+					p2s[k].clear_history()
+					p1s[k].end_traj()
+					#empty the player buffers 
+					p1s[k].empty_buffer()
+
+			for k in range(PARELLEL_PER_BATCH):
+				p1s[k].evalmode=False
+
+			p1winrate = p1wins / (p1wins + p2wins)
+			p2winrate = p2wins / (p1wins + p2wins)
+		
+			max_test_winrate = max(p1winrate, max_winrate)
+
+			print('[Epoch {:3d}: Evaluation]  '.format(i) )
+			print()
+			print('Player 1 | win rate : {0:.4f} |  '.format(p1winrate) + 'wins : {:4d}  '.format(p1wins) + int(50 * p1winrate) * '#')
+			print('Player 2 | win rate : {0:.4f} |  '.format(p2winrate) + 'wins : {:4d}  '.format(p2wins) + int(50 * p2winrate) * '#')
+			print()
+
+			if(p1winrate >= max_test_winrate):
+				torch.save(p1net.state_dict(), 'network_'+str(i)+'.pth')
+			win_array.append(p1winrate)
+
+	with open('results.csv', 'w') as myfile:
+	     wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+	     wr.writerow(win_array)
+
+
+
