@@ -9,6 +9,7 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
+from torchcontrib.optim import SWA
 import pprint
 import copy
 import teams_data
@@ -62,8 +63,6 @@ class ExperienceReplay():
 		'''
 		Stores everything in the replay and increments the pointer
 		'''
-
-		#leave rewards as all 0 then impute later in the win function
 
 		self.state_replay = self.recurse_store_state(self.state_replay, state, self.ptr)
 
@@ -171,15 +170,16 @@ class ParallelLearningAgent(SACAgent):
 
 		else:
 			if is_teampreview:
-				q_tensor[0:4] *= 0
+				for i in np.arange(10):
+					if int_to_action(i, teamprev=True) not in valid_actions:
+						q_tensor[i] *= 0
 			else:
 				for i in np.arange(10):
 					if int_to_action(i) not in valid_actions:
 						q_tensor[i] *= 0
 
-			
 			policy_tensor = q_tensor/np.sum(q_tensor)
-			
+			print(policy_tensor)
 			#for debugging if we get nans
 			if(True in np.isnan(policy_tensor)):
 				print("valid actions:" + str(valid_actions))
@@ -193,9 +193,15 @@ class ParallelLearningAgent(SACAgent):
 
 			#check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
 			if is_teampreview:
-				action = int_to_action(np.random.choice(np.arange(10), p=policy_tensor), teamprev = True)
+				if(self.evalmode):
+					action = int_to_action(np.argmax(policy_tensor), teamprev = True)
+				else:
+					action = int_to_action(np.random.choice(np.arange(10), p=policy_tensor), teamprev = True)
 			else:
-				action = int_to_action(np.random.choice(np.arange(10), p=policy_tensor), teamprev = False)
+				if(self.evalmode):
+					action = int_to_action(np.argmax(policy_tensor), teamprev = False)
+				else:
+					action = int_to_action(np.random.choice(np.arange(10), p=policy_tensor), teamprev = False)
 
 
 			#save logpaction in buffer (not really needed since it gets recomputed)
@@ -242,7 +248,7 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 	for k in range(K):
 		sim[k].stdin.write('>start {"formatid":"gen5ou"}\n')
 		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
-		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
+		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team2 +'" }\n')
 		sim[k].stdin.flush() 
 
 	games = [[] for _ in range(K)]
@@ -423,36 +429,37 @@ if __name__ == '__main__':
 	d_field = 16
 
 	# init neural net
-	p1net = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0, softmax=False)
+	p1net = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.3, softmax=False)
 	p1net = p1net.to(DEVICE)
 
-	#p1net_val = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.5, softmax=False)
+	#p1net_val = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.3, softmax=False)
 	#p1net_val = p1net_val.to(DEVICE)
 
 	EPOCHS = 30
 	BATCH_SIZE = 5
 	PARELLEL_PER_BATCH = 10
 	BUFFER_SIZE = 2000
-	gamma=0.99
-	lam = 0.95
+	gamma=1#0.99
+	lam = 0.95 #not used
 	
 	# p1s/p2s are K individual agents storing game information, but the policy/value functions are computed by the same neural net
 	p1s = [ParallelLearningAgent(id='p1', name='Red', size = 20000, gamma=gamma, lam=lam) for _ in range(PARELLEL_PER_BATCH)]
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
-	alpha = 0.05
+	alpha = 0.005
 	warmup = 2 #number of epochs playing randomly
-	minibatch_size = 20 #number of examples sampled in each update
+	minibatch_size = 200 #number of examples sampled in each update
 
 	replay = ExperienceReplay(size=20000, minibatch_size=minibatch_size)
 
 	optimizer = optim.Adam(p1net.parameters(), lr=0.01, weight_decay=1e-4)
 	#optimizer_val = optim.Adam(p1net_val.parameters(), lr=0.01, weight_decay=1e-4)
+	#optimizer_val = SWA(optimizer_val_base, swa_start=50, swa_freq=1, swa_lr=0.01)
 
 	value_loss_fun = nn.MSELoss(reduction='mean')
 
-	train_update_iters = 10
-
+	train_update_iters = 5
+	max_winrate = 0
 
 	# run games
 	for i in range(EPOCHS):
@@ -479,100 +486,110 @@ if __name__ == '__main__':
 				if(winner_strings[k] == p2s[k].name):
 					p2wins += 1
 
+				p1s[k].end_traj()
 				#empty the player buffers into the experience replay
-				# spitstart = time.time()
-				# states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1s[k].spit()
-				# spitend = time.time()
-				# print('Spit time ' + '{0:.4f}'.format(spitend - spitstart))
+				spitstart = time.time()
+				states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1s[k].spit()
+				spitend = time.time()
+				#print('Spit time ' + '{0:.4f}'.format(spitend - spitstart))
 
+				swallowstart = time.time()
+				replay.swallow(states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones)
 				
-				# swallowstart = time.time()
-				# replay.swallow(states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones)
+				swallowend = time.time()
+				#print('Swallow time ' + '{0:.4f}'.format(swallowend - swallowstart))
 				
-				# swallowend = time.time()
-				# print('Swallow time ' + '{0:.4f}'.format(swallowend - swallowstart))
 				p1s[k].clear_history()
 				p2s[k].clear_history()
-				p1s[k].end_traj()
+				p1s[k].empty_buffer()
 
 		for _ in range(train_update_iters):
-			total_loss = 0
-			for k in range(PARELLEL_PER_BATCH):
-				#extract everything with get, concat, then sample from it
-				states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1s[k].get()
+			
+			#for k in range(PARELLEL_PER_BATCH):
+			#extract everything with get, concat, then sample from it
+			states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = replay.get()
+			actions = torch.tensor(actions, dtype=torch.long)
+			advs = torch.tensor(advs, dtype=torch.float)
+			rtgs = torch.tensor(rtgs, dtype=torch.float)
+			logps = torch.tensor(logps, dtype=torch.float)
+			valid_actions = torch.tensor(valid_actions, dtype=torch.long)
+			rews = torch.tensor(rews, dtype=torch.float)
+			dones = torch.tensor(dones, dtype=torch.long)
 
-				actions = torch.tensor(actions, dtype=torch.long)
-				advs = torch.tensor(advs, dtype=torch.float)
-				rtgs = torch.tensor(rtgs, dtype=torch.float)
-				logps = torch.tensor(logps, dtype=torch.float)
-				valid_actions = torch.tensor(valid_actions, dtype=torch.long)
-				rews = torch.tensor(rews, dtype=torch.float)
-				dones = torch.tensor(dones, dtype=torch.long)
+			total_traj_len = actions.shape[0]
 
-				total_traj_len = actions.shape[0]
+			# Q1 step
+			#print('Q1 step')
+			optimizer.zero_grad()
 
-				# Q1 step
-				#print('Q1 step')
-				optimizer.zero_grad()
-
-				with torch.no_grad():
-				    _, _, value_nograd_tensor = p1net(states2)
-
-
-				Q1_tensor, _, _ = p1net(states) # (batch, 10), (batch, )       
-
-				valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q1_tensor))  
-				Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
-				loss =  value_loss_fun(Q_action_taken, rews + gamma * (1-dones) * value_nograd_tensor) 
-				#print(loss)
-				#loss.backward()
-				optimizer.step() 
-
-				'''
-				# Q2 step
-				#print('Q2 step')
-				optimizer.zero_grad()
-
-				with torch.no_grad():
-				    _, _, value_nograd_tensor = p1net(states2)
+			with torch.no_grad():
+			    _, _, value_nograd_tensor = p1net(states2)
 
 
-				_, Q2_tensor, value_tensor = p1net(states) # (batch, 10), (batch, )       
+			Q1_tensor, _, _ = p1net(states) # (batch, 10), (batch, )       
 
-				valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q2_tensor))  
-				Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
-				loss =  value_loss_fun(Q_action_taken, rews + gamma * (1-dones) * value_nograd_tensor) 
-				#print(loss)
-				loss.backward()
-				optimizer.step() 
-				'''
+			valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q1_tensor))  
+			Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
+			loss =  value_loss_fun(Q_action_taken, rews + gamma * (1-dones) * value_nograd_tensor) 
+			#print(loss)
+			#loss.backward()
+			optimizer.step() 
 
-				# Value_step
-				#print('Value step')
+			'''
+			# Q2 step
+			#print('Q2 step')
+			optimizer.zero_grad()
 
-				optimizer.zero_grad()
-				with torch.no_grad():
-				    Q1_nograd_tensor, _, _ = p1net(states) 
-				#Q_nograd_tensor = torch.min(Q1_nograd_tensor, Q2_nograd_tensor)
-				Q_nograd_tensor = Q1_nograd_tensor
-				_, _, value_tensor = p1net(states) 
+			with torch.no_grad():
+			    _, _, value_nograd_tensor = p1net(states2)
 
-				valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_nograd_tensor)) 
-				valid_policy_tensor = valid_Q_tensor / torch.sum(valid_Q_tensor, dim=1, keepdim=True)
 
-				target = Q_nograd_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
-				loss = value_loss_fun(target, value_tensor)
-				#print(loss)
-				loss.backward()
-				optimizer.step()
+			_, Q2_tensor, value_tensor = p1net(states) # (batch, 10), (batch, )       
 
-				total_loss+=loss
-			print(total_loss)
+			valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q2_tensor))  
+			Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
+			loss =  value_loss_fun(Q_action_taken, rews + gamma * (1-dones) * value_nograd_tensor) 
+			#print(loss)
+			loss.backward()
+			optimizer.step() 
+			'''
+
+			# Value_step
+			#print('Value step')
+
+			optimizer.zero_grad()
+			with torch.no_grad():
+			    Q1_nograd_tensor, _, _ = p1net(states) 
+			#Q_nograd_tensor = torch.min(Q1_nograd_tensor, Q2_nograd_tensor)
+			Q_nograd_tensor = Q1_nograd_tensor
+			_, _, value_tensor = p1net(states) 
+			
+			valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_nograd_tensor)) 
+			valid_policy_tensor = valid_Q_tensor / torch.sum(valid_Q_tensor, dim=1, keepdim=True)
+			
+			target = Q_nograd_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
+			loss = value_loss_fun(target, value_tensor)
+			
+			loss.backward()
+			optimizer.step()
+			print(loss)
+
+			#optimizer_val.bn_update(p1net_val, model)
+			#optimizer_val.swap_swa_sgd()
+
+			
 
 		endttime = time.time()
 
 		p1winrate = p1wins / (p1wins + p2wins)
 		p2winrate = p2wins / (p1wins + p2wins)
+
+		'''
+		if(p1winrate > max_winrate):
+			torch.save(p1net.state.dict(), '')
+		'''
+
+		max_winrate = max(p1winrate, max_winrate)
 
 		print('[Epoch {:3d}: ave game comp time]  '.format(i) + '{0:.4f}'.format((endttime - starttime)/(BATCH_SIZE * PARELLEL_PER_BATCH)))
 		print()

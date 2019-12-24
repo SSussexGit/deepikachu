@@ -122,22 +122,6 @@ class VPGBuffer:
         return [self.recurse_cut_state(self.state_buffer), self.action_buffer[:self.ptr], self.adv_buffer[:self.ptr], 
                 self.rtg_buffer[:self.ptr], self.logp_buffer[:self.ptr], self.valid_actions_buffer[:self.ptr]]
 
-    def empty_buffer(self):
-        self.state_buffer = create_2D_state(self.buffer_size)
-        self.action_buffer = np.zeros(self.buffer_size, dtype=int) 
-        self.adv_buffer = np.zeros(self.buffer_size, dtype=np.float32)
-        self.rew_buffer = np.zeros(self.buffer_size, dtype=np.float32)
-        self.rtg_buffer = np.zeros(self.buffer_size, dtype=np.float32) 
-        self.val_buffer = np.zeros(self.buffer_size, dtype=np.float32) 
-        self.logp_buffer = np.zeros(self.buffer_size, dtype=np.float32) 
-        self.total_tuples = 0 
-        self.ptr_start = 0 
-        self.ptr = 0 
-        self.valid_actions_buffer = np.zeros((self.buffer_size, ACTION_SPACE_SIZE)) 
-        self.done_buffer = np.zeros(self.buffer_size, dtype = int)
-
-        return 
-
 
 class LearningAgent(VPGBuffer, DefaultAgent):
     '''
@@ -170,6 +154,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
         self.wins = 0
         self.warmup = False
         self.minibatch_size = 100
+        self.evalmode = False
 
     def recurse_store_state(self, state_buffer, state, index):
         '''
@@ -299,6 +284,24 @@ class LearningAgent(VPGBuffer, DefaultAgent):
         self.store_in_buffer(self.state, action, value, logp, valid_actions)
         
         return PlayerAction(self.id, action)
+
+    def empty_buffer(self):
+        self.state_buffer = create_2D_state(self.buffer_size)
+        self.state2_buffer = create_2D_state(self.buffer_size)
+        self.action_buffer = np.zeros(self.buffer_size, dtype=int) 
+        self.adv_buffer = np.zeros(self.buffer_size, dtype=np.float32)
+        self.rew_buffer = np.zeros(self.buffer_size, dtype=np.float32)
+        self.rtg_buffer = np.zeros(self.buffer_size, dtype=np.float32) 
+        self.val_buffer = np.zeros(self.buffer_size, dtype=np.float32) 
+        self.logp_buffer = np.zeros(self.buffer_size, dtype=np.float32) 
+        self.total_tuples = 0 
+        self.ptr_start = 0 
+        self.ptr = 0 
+        self.valid_actions_buffer = np.zeros((self.buffer_size, ACTION_SPACE_SIZE)) 
+        self.done_buffer = np.zeros(self.buffer_size, dtype = int)
+        self.wins = 0
+
+        return 
 
     def spit(self):
         """

@@ -35,7 +35,7 @@ def get_valid_actions(state, message):
         # Note: in theory could provide order like `412356`
         # but only the active pokemon is really a choice (here: 4)
         # and simulator supports just specifying first pokemon
-        teamsize = int(message['maxTeamSize'])
+        teamsize = len(message['side']['pokemon']) #int(message['maxTeamSize'])
         return [{'id':'team', 'teamspec': str(s)} for s in range(1, teamsize + 1)]
 
     # check if in a position with forceSwitch (can switch to anything alive except active)
@@ -47,13 +47,20 @@ def get_valid_actions(state, message):
     # go through the pokemon to make updates to valid moves
     i = 1
     for pokemon_dict in message['side']['pokemon']:
-        if ((pokemon_dict['active'] == True) or (pokemon_dict['condition'] == '0 fnt')):
-            #remove switching to the thing that is already active
+        if ((pokemon_dict['active'] == True) or (pokemon_dict['condition'] == '0 fnt') or (pokemon_dict['pokemon_id'] in [0, 1])):
+            #remove switching to the thing that is already active or if slot empty
             s = {'id':'switch', 'switchspec': str(i)}
             if(s in valid_list):
                 valid_list.remove(s)
 
         i+=1
+
+    #if less than 6 things in team remove rest of options
+    for j in range(i, 7):
+        s = {'id':'switch', 'switchspec': str(j)}
+        if(s in valid_list):
+            valid_list.remove(s)
+
 
     #if something has less than 4 moves remove options. bit hacky
     
@@ -323,7 +330,7 @@ class DefaultAgent:
             if(pokemon_dict['pokemon_id'] == pokedex_data[game_name_to_dex_name(pokemon_string)]['num']):
                 pokemon_location = pokemon_dict_index
             if(pokemon_dict['pokemon_id'] == pokemon_token):
-                none_list.append(pokemon_dict_index)
+                pokemon_location = pokemon_dict_index
         if(pokemon_location == None):
             raise ValueError("could not find pokemon in opponents team: " + pokemon_string)
         return pokemon_location
