@@ -198,6 +198,9 @@ class State(torch.nn.Module):
 
                 # regular value, no embedding necessary
                 else:
+                    #check if its of type bool and if so map to a uint8. know not empty so check first element
+                    if isinstance(value[0], np.bool_):
+                        value = np.array(value, dtype=np.uint8)
                     x[key] = torch.tensor(value, dtype=torch.float, device=DEVICE).unsqueeze(1)
 
                 # print(key, x[key].shape, key) # shape debugging
