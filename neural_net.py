@@ -142,12 +142,10 @@ class State(torch.nn.Module):
             if key in self.opponent_field:
                 # also embeddings in subdict
                 x[key] = self.__recursive_replace(value)
-                
                 # impute boosted stats for opponent
                 for a, b in zip(['atk', 'def','spa','spd','spe'], 
                                 ['oppatk', 'oppdef','oppspa','oppspd','oppspe']):
-                    x[key]['active']['stats'][a] = (VAL_STAT[VAL_OFFSET + x[key]['boosts'][b].long()] * 
-                        x[key]['active']['stats'][a]).float().to(DEVICE)
+                    x[key]['active']['stats'][a] *= VAL_STAT[VAL_OFFSET + x[key]['boosts'][b].long().cpu()].to(DEVICE)
                            
             # if dict, not at leaf yet, so recursively replace
             elif isinstance(value, dict):
@@ -531,7 +529,7 @@ class PokemonRepresentation0(nn.Module):
              x['hp'],
              x['stats']['max_hp'] - x['hp'], # remaining
              x['stats']['max_hp'],
-             boosts
+             boosts.to(DEVICE)
         ]
 
         h = torch.cat(h, dim=1)

@@ -368,7 +368,7 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 
 			# finish up by sampling action
 			for idx, k in enumerate(running):
-				action = p1s[k].process_request_receive_tensors(valid_actions[idx], q_tensor[idx].numpy(), value_tensor[idx].numpy())
+				action = p1s[k].process_request_receive_tensors(valid_actions[idx], q_tensor[idx].cpu().numpy(), value_tensor[idx].cpu().numpy())
 				send_choice_to_simulator(sim[k], action)
 
 			# if we are about to exit the loop, make sure fully handled games continue to be simulated
@@ -431,15 +431,15 @@ if __name__ == '__main__':
 	d_field = 16
 
 	# init neural net
-	p1net = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0, softmax=False)
+	p1net = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.5, softmax=False)
 	p1net = p1net.to(DEVICE)
 
 	#p1net_val = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.3, softmax=False)
 	#p1net_val = p1net_val.to(DEVICE)
 
 	EPOCHS = 50
-	BATCH_SIZE = 10
-	PARELLEL_PER_BATCH = 8
+	BATCH_SIZE = 2
+	PARELLEL_PER_BATCH = 4
 	BUFFER_SIZE = 2000
 	gamma=0.99#0.99
 	lam = 0.95 #not used
@@ -450,7 +450,7 @@ if __name__ == '__main__':
 
 	alpha = 0.05
 	warmup = 0 #number of epochs playing randomly
-	minibatch_size = 500 #number of examples sampled in each update
+	minibatch_size = 20 #number of examples sampled in each update
 
 	replay = ExperienceReplay(size=80000, minibatch_size=minibatch_size)
 
@@ -466,7 +466,7 @@ if __name__ == '__main__':
 	win_array = []
 	# run games
 	for i in range(EPOCHS):
-
+		p1net.train()
 		print(' Epoch {:3d}: '.format(i))
 		starttime = time.time()
 
@@ -508,7 +508,6 @@ if __name__ == '__main__':
 				p1s[k].empty_buffer()
 
 		for _ in range(train_update_iters):
-			
 			#for k in range(PARELLEL_PER_BATCH):
 			#extract everything with get, concat, then sample from it
 			states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = replay.get()
@@ -516,9 +515,9 @@ if __name__ == '__main__':
 			advs = torch.tensor(advs, dtype=torch.float)
 			rtgs = torch.tensor(rtgs, dtype=torch.float)
 			logps = torch.tensor(logps, dtype=torch.float)
-			valid_actions = torch.tensor(valid_actions, dtype=torch.long)
-			rews = torch.tensor(rews, dtype=torch.float)
-			dones = torch.tensor(dones, dtype=torch.long)
+			valid_actions = torch.tensor(valid_actions, dtype=torch.float).to(DEVICE)
+			rews = torch.tensor(rews, dtype=torch.float).to(DEVICE)
+			dones = torch.tensor(dones, dtype=torch.float).to(DEVICE)
 
 			total_traj_len = actions.shape[0]
 
@@ -531,8 +530,7 @@ if __name__ == '__main__':
 
 
 			Q1_tensor, _, _ = p1net(states) # (batch, 10), (batch, )       
-
-			valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q1_tensor))  
+			valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q1_tensor)) 
 			Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
 			loss =  value_loss_fun(Q_action_taken, rews + gamma * (1-dones) * value_nograd_tensor) 
 			#print(loss)
@@ -591,6 +589,7 @@ if __name__ == '__main__':
 
 		#do an eval round
 		if(i%5 == 4):
+			p1net.eval()
 			for k in range(PARELLEL_PER_BATCH):
 				p1s[k].evalmode=True
 
