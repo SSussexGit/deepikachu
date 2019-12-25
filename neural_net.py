@@ -155,6 +155,10 @@ class State(torch.nn.Module):
             
             # if int, we possibly need an embedding
             elif isinstance(value, np.ndarray):
+                #old torch compatabilitry
+                if isinstance(value[0], np.bool_):
+                    value = np.array(value, dtype=np.uint8)
+
                 if key in self.pokemon_fields:
                     x[key] = self.pokemon_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.type_fields:

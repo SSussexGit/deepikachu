@@ -437,9 +437,9 @@ if __name__ == '__main__':
 	#p1net_val = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.3, softmax=False)
 	#p1net_val = p1net_val.to(DEVICE)
 
-	EPOCHS = 10
-	BATCH_SIZE = 1
-	PARELLEL_PER_BATCH = 5
+	EPOCHS = 50
+	BATCH_SIZE = 10
+	PARELLEL_PER_BATCH = 8
 	BUFFER_SIZE = 2000
 	gamma=0.99#0.99
 	lam = 0.95 #not used
