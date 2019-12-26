@@ -407,8 +407,17 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 
 
 if __name__ == '__main__':
-	torch.manual_seed(42)
-	np.random.seed(42)
+	'''
+	Usage:  ['tester.py', i] for parallel compute
+	'''
+
+	if(len(sys.argv)>1):
+		c = int(sys.argv[1])
+	else:
+		c = 0
+
+	torch.manual_seed(c)
+	np.random.seed(c)
 
 	state_embedding_settings = {
 		'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
@@ -437,9 +446,9 @@ if __name__ == '__main__':
 	#p1net_val = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.3, softmax=False)
 	#p1net_val = p1net_val.to(DEVICE)
 
-	EPOCHS = 50
-	BATCH_SIZE = 2
-	PARELLEL_PER_BATCH = 4
+	EPOCHS = 100
+	BATCH_SIZE = 10
+	PARELLEL_PER_BATCH = 16
 	BUFFER_SIZE = 2000
 	gamma=0.99#0.99
 	lam = 0.95 #not used
@@ -450,7 +459,7 @@ if __name__ == '__main__':
 
 	alpha = 0.05
 	warmup = 0 #number of epochs playing randomly
-	minibatch_size = 20 #number of examples sampled in each update
+	minibatch_size = 2000 #number of examples sampled in each update
 
 	replay = ExperienceReplay(size=80000, minibatch_size=minibatch_size)
 
@@ -464,6 +473,7 @@ if __name__ == '__main__':
 	max_winrate = 0
 
 	win_array = []
+	train_win_array = []
 	# run games
 	for i in range(EPOCHS):
 		p1net.train()
@@ -581,6 +591,8 @@ if __name__ == '__main__':
 		p1winrate = p1wins / (p1wins + p2wins)
 		p2winrate = p2wins / (p1wins + p2wins)
 
+		train_win_array.append(p1winrate)
+
 		#print('[Epoch {:3d}: ave game comp time]  '.format(i) + '{0:.4f}'.format((endttime - starttime)/(BATCH_SIZE * PARELLEL_PER_BATCH)))
 		#print()
 		#print('Player 1 | win rate : {0:.4f} |  '.format(p1winrate) + 'wins : {:4d}  '.format(p1wins) + int(50 * p1winrate) * '#')
@@ -626,12 +638,16 @@ if __name__ == '__main__':
 			print()
 
 			if(p1winrate >= max_test_winrate):
-				torch.save(p1net.state_dict(), 'network_'+str(i)+'.pth')
+				torch.save(p1net.state_dict(), 'output/network_'+str(c)+'_'+str(i)+'.pth')
 			win_array.append(p1winrate)
 
-	with open('output/results.csv', 'w') as myfile:
+	with open('output/results' + str(c) + '.csv', 'w') as myfile:
 	     wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
 	     wr.writerow(win_array)
+
+	with open('output/train_results' + str(c) + '.csv', 'w') as myfile:
+	     wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+	     wr.writerow(train_win_array)
 
 
 
