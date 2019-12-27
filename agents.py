@@ -382,6 +382,7 @@ class DefaultAgent:
         '''
         extracts the player and pokemon from a pokemon field
         '''
+        
         subject = message['pokemon']
         #extract into player and pokemon
         player_pokemon = subject.split(': ') #format is 'playerid: [pokemonname]'

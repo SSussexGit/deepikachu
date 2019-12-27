@@ -161,6 +161,7 @@ class ParallelLearningAgent(SACAgent):
 
 
 	def process_request_receive_tensors(self, valid_actions, q_tensor, value):
+		print(self.state['opponent']['active'])
 		is_teampreview = ('teamspec' in valid_actions[0])
 		q_tensor = np.exp(q_tensor)
 
@@ -247,8 +248,8 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 	# start all games
 	for k in range(K):
 		sim[k].stdin.write('>start {"formatid":"gen5ou"}\n')
-		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
-		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
+		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + teams_data.team3 +'" }\n')
+		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team3 +'" }\n')
 		sim[k].stdin.flush() 
 
 	games = [[] for _ in range(K)]
@@ -446,9 +447,9 @@ if __name__ == '__main__':
 	#p1net_val = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.3, softmax=False)
 	#p1net_val = p1net_val.to(DEVICE)
 
-	EPOCHS = 100
-	BATCH_SIZE = 10
-	PARELLEL_PER_BATCH = 16
+	EPOCHS = 5
+	BATCH_SIZE = 1
+	PARELLEL_PER_BATCH = 1
 	BUFFER_SIZE = 2000
 	gamma=0.99#0.99
 	lam = 0.95 #not used
@@ -458,8 +459,8 @@ if __name__ == '__main__':
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
 	alpha = 0.05
-	warmup = 0 #number of epochs playing randomly
-	minibatch_size = 2000 #number of examples sampled in each update
+	warmup = 1 #number of epochs playing randomly
+	minibatch_size = 1 #number of examples sampled in each update
 
 	replay = ExperienceReplay(size=80000, minibatch_size=minibatch_size)
 
@@ -469,7 +470,7 @@ if __name__ == '__main__':
 
 	value_loss_fun = nn.MSELoss(reduction='mean')
 
-	train_update_iters = 10
+	train_update_iters = 5
 	max_winrate = 0
 
 	win_array = []
@@ -528,9 +529,15 @@ if __name__ == '__main__':
 			valid_actions = torch.tensor(valid_actions, dtype=torch.float).to(DEVICE)
 			rews = torch.tensor(rews, dtype=torch.float).to(DEVICE)
 			dones = torch.tensor(dones, dtype=torch.float).to(DEVICE)
-
 			total_traj_len = actions.shape[0]
-
+			#print(replay.state_replay)
+			print(states['player']['active'])
+			print(states2['player']['active'])
+			#print(states['opponent']['active'])
+			#print(states2['opponent']['active'])
+			print(actions)
+			print(dones)
+			print(rews)
 			# Q1 step
 			#print('Q1 step')
 			optimizer.zero_grad()
@@ -540,10 +547,9 @@ if __name__ == '__main__':
 
 
 			Q1_tensor, _, _ = p1net(states) # (batch, 10), (batch, )       
-			valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q1_tensor)) 
-			Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
+			Q_action_taken = Q1_tensor[torch.arange(total_traj_len), actions]
+			
 			loss =  value_loss_fun(Q_action_taken, rews + gamma * (1-dones) * value_nograd_tensor) 
-			#print(loss)
 			#loss.backward()
 			optimizer.step() 
 
@@ -561,7 +567,7 @@ if __name__ == '__main__':
 			valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q2_tensor))  
 			Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
 			loss =  value_loss_fun(Q_action_taken, rews + gamma * (1-dones) * value_nograd_tensor) 
-			#print(loss)
+			print(loss)
 			loss.backward()
 			optimizer.step() 
 			'''
@@ -576,12 +582,13 @@ if __name__ == '__main__':
 			Q_nograd_tensor = Q1_nograd_tensor
 			_, _, value_tensor = p1net(states) 
 			
-			valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_nograd_tensor)) 
+			valid_Q_tensor = torch.mul(valid_actions, torch.exp(Q_nograd_tensor)) 
 			valid_policy_tensor = valid_Q_tensor / torch.sum(valid_Q_tensor, dim=1, keepdim=True)
 			
 			target = Q_nograd_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
-			loss = value_loss_fun(target, value_tensor)
 			
+			loss = value_loss_fun(target, value_tensor)
+			#print(loss)
 			loss.backward()
 			optimizer.step()
 			
@@ -593,11 +600,11 @@ if __name__ == '__main__':
 
 		train_win_array.append(p1winrate)
 
-		#print('[Epoch {:3d}: ave game comp time]  '.format(i) + '{0:.4f}'.format((endttime - starttime)/(BATCH_SIZE * PARELLEL_PER_BATCH)))
-		#print()
-		#print('Player 1 | win rate : {0:.4f} |  '.format(p1winrate) + 'wins : {:4d}  '.format(p1wins) + int(50 * p1winrate) * '#')
-		#print('Player 2 | win rate : {0:.4f} |  '.format(p2winrate) + 'wins : {:4d}  '.format(p2wins) + int(50 * p2winrate) * '#')
-		#print()
+		print('[Epoch {:3d}: ave game comp time]  '.format(i) + '{0:.4f}'.format((endttime - starttime)/(BATCH_SIZE * PARELLEL_PER_BATCH)))
+		print()
+		print('Player 1 | win rate : {0:.4f} |  '.format(p1winrate) + 'wins : {:4d}  '.format(p1wins) + int(50 * p1winrate) * '#')
+		print('Player 2 | win rate : {0:.4f} |  '.format(p2winrate) + 'wins : {:4d}  '.format(p2wins) + int(50 * p2winrate) * '#')
+		print()
 
 		#do an eval round
 		if(i%5 == 4):

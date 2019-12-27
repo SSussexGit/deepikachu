@@ -502,11 +502,12 @@ class PokemonRepresentation0(nn.Module):
         assert(boosts.dim() == 2 and boosts.shape[1] == 7)
 
         x = pokemon
-
+        
         # order equivariant move representations
         moves = torch.stack([self.move_embed(x['moves'][i]) for i in range(4)], dim=1) # bs, moves, d
+        
         moves_equivariant = self.move_relate(moves)
-
+        
         # order invariant deep sets representation of all moves
         moves_invariant = self.move_DS(moves_equivariant)
 
@@ -695,7 +696,7 @@ class DeePikachu0(nn.Module):
         all_actions_A =  torch.cat([
             self.q_combine_moves_hidden[0](moves_and_hidden), 
             self.q_combine_pokemon_hidden[0](pokemon_and_hidden)], dim=1)
-        q_values_A = self.q_function[0](all_actions_A).squeeze(dim=2)#.sigmoid() #- apparently sigmoid not done in practice
+        q_values_A = self.q_function[0](all_actions_A).squeeze(dim=2).sigmoid() #- apparently sigmoid not done in practice
 
         all_actions_B =  torch.cat([
             self.q_combine_moves_hidden[1](moves_and_hidden), 

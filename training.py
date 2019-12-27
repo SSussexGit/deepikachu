@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import game_coordinator
 from agents import *
+import csv
 
 # import custom structures (like MESSAGE, ACTION)
 from custom_structures import *
@@ -24,9 +25,9 @@ from data_pokemon import *
 import neural_net
 from neural_net import DeePikachu0
 
-EPOCHS = 30
+EPOCHS = 10
 MAX_GAME_LEN = 4000 #max length is 200 but if you u-turn every turn you move twice per turn
-BATCH_SIZE = 10 #100
+BATCH_SIZE = 8 #100
 ACTION_SPACE_SIZE = 10 #4 moves and 6 switches
 
 def action_to_int(action):
@@ -323,7 +324,7 @@ class SACAgent(LearningAgent):
 
         self.request_update(request.message)
         message = request.message['request_dict']
-        print(self.state)
+        
         #save the state in the buffer
 
         #first get our valid action space
@@ -337,39 +338,39 @@ class SACAgent(LearningAgent):
             value = 0
             logp = np.log(1/min(1, len(valid_actions)))
         else:
-            if (valid_actions == []):
-                value = 0
-                action = copy.deepcopy(ACTION['default'])
+            is_teampreview = ('teamspec' in valid_actions[0])
+            np_state = create_2D_state(1) #initialize an empty np state to update
+            np_state = self.construct_np_state_from_python_state(np_state, self.state)
+            policy_tensor, _, value_tensor = self.network(np_state)
+            #print(policy_tensor)
+            value = value_tensor[0]  
+
+            policy_tensor = torch.exp(policy_tensor)
+            
+            if is_teampreview:
+                for i in np.arange(10):
+                    if int_to_action(i, teamprev=True) not in valid_actions:
+                        policy_tensor[0][i] *= 0
             else:
-                is_teampreview = ('teamspec' in valid_actions[0])
-                np_state = create_2D_state(1) #initialize an empty np state to update
-                np_state = self.construct_np_state_from_python_state(np_state, self.state)
-                policy_tensor, _, value_tensor = self.network(np_state)
-                print(policy_tensor)
-                value = value_tensor[0]  
+                for i in np.arange(10):
+                    if int_to_action(i) not in valid_actions:
+                        policy_tensor[0][i] *= 0
+            
 
-                policy_tensor = torch.exp(policy_tensor)
-                if is_teampreview:
-                    policy_tensor[0][0:4] *= 0
+            policy = policy_tensor.cpu().detach().numpy()[0] 
+            policy /= np.sum(policy)
+            #print(policy)
+            #check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
+            if is_teampreview:
+                if(self.evalmode):
+                    action = int_to_action(np.argmax(policy), teamprev = True)
                 else:
-                    for i in np.arange(10):
-                        if int_to_action(i) not in valid_actions:
-                            policy_tensor[0][i] *= 0
-
-                policy = policy_tensor.cpu().detach().numpy()[0] 
-                policy /= np.sum(policy)
-
-                #check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
-                if is_teampreview:
-                    if(self.evalmode):
-                        action = int_to_action(np.argmax(policy), teamprev = True)
-                    else:
-                        action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = True)
+                    action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = True)
+            else:
+                if(self.evalmode):
+                    action = int_to_action(np.argmax(policy), teamprev = False)
                 else:
-                    if(self.evalmode):
-                        action = int_to_action(np.argmax(policy), teamprev = False)
-                    else:
-                        action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = False)
+                    action = int_to_action(np.random.choice(np.arange(10), p=policy), teamprev = False)
 
             #save logpaction in buffer (not really needed since it gets recomputed)
             logp = np.log(1/min(1, len(valid_actions)))
@@ -394,7 +395,7 @@ class SACAgent(LearningAgent):
         '''
         Call after a batch to return a sample from the buffer
         '''
-        idxs = np.random.randint(0, self.total_tuples, size=self.minibatch_size)
+        idxs = np.arange(0, self.total_tuples)#np.random.randint(0, self.total_tuples, size=self.minibatch_size)
         # nornalize advantage values to mean 0 std 1
         #adv_mean = np.mean(self.adv_buffer)
         #adv_std = np.std(self.adv_buffer)
@@ -451,7 +452,7 @@ if __name__ == '__main__':
     python3 training.py mode=train
     '''
     state_embedding_settings = {
-        'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
+        'pokemon' :     {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_POKEMON},
         'type' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_TYPE},
         'move' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE},
         'move_type' :   {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
@@ -471,22 +472,29 @@ if __name__ == '__main__':
     d_field = 16
 
     p1 = SACAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, 
-        network=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.5, softmax=False))
+        network=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0, softmax=False))
     p2 = RandomAgent(id='p2', name='Blue')
 
-    optimizer = optim.Adam(p1.network.parameters(), lr=0.01, weight_decay=1e-4)
+    optimizer = optim.Adam(p1.network.parameters(), lr=0.001, weight_decay=1e-4)
+
+    val_net=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.5, softmax=False)
+    val_optimizer = optim.Adam(p1.network.parameters(), lr=0.001, weight_decay=1e-4)
+
     value_loss_fun = nn.MSELoss(reduction='mean')
 
-    train_update_iters = 5
+    train_update_iters = 20
 
-    alpha = 0.05
-    warm_up = 0 #number of epochs playing randomly
-    minibatch_size = 200
+    alpha = 0.005
+    warm_up = 1 #number of epochs playing randomly
+    minibatch_size = 50
     p1.minibatch_size = minibatch_size
+    max_winrate = 0
+    win_array = []
+    train_win_array = []
 
     #handle command line input whether to train or test
     if(len(sys.argv)>1 and sys.argv[1] == 'test'):
-        p1.network.load_state_dict(torch.load('network_14.pth'))
+        p1.network.load_state_dict(torch.load('output/network__9.pth'))
         p1.network.eval()
         p1.evalmode = True
         winner = game_coordinator.run_learning_episode(p1, p2)
@@ -496,7 +504,8 @@ if __name__ == '__main__':
         print(p1.wins)
     else:
         for i in range(EPOCHS):
-
+            p1.evalmode=False
+            p1.network.train()
             print('Epoch: ', i)
             starttime = time.time()
 
@@ -528,36 +537,36 @@ if __name__ == '__main__':
                     dones = torch.tensor(dones, dtype=torch.long)
 
                     total_traj_len = actions.shape[0]
-
                     # Q step
-                    print('Q step')
+                    #print('Q step')
                     optimizer.zero_grad()
-
+                    '''
                     with torch.no_grad():
-                        _, _, value2_tensor = p1.network(states2)
+                        _, _, value2_tensor = val_net(states2)
+                        value2_tensor = 0.5
             
 
                     Q_tensor, _, _ = p1.network(states) # (batch, 10), (batch, )       
 
-                    valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor))  
-                    Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
+                    
+                    Q_action_taken = Q_tensor[torch.arange(total_traj_len), actions]
                     loss =  value_loss_fun(Q_action_taken, rews + p1.gamma * (1-dones) * value2_tensor) 
                     print(loss)
                     loss.backward()
                     optimizer.step()    
-
+                    '''
 
                     # Value_step
-                    print('Value step')
-
+                    #print('Value step')
+                    
                     optimizer.zero_grad()
                     with torch.no_grad():
-                        Q_tensor, _, _ = p1.network(states) 
+                        Q_tensor, _, _ = val_net(states) 
                         
 
                     _, _, value_tensor = p1.network(states) 
 
-                    valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q_tensor)) 
+                    valid_Q_tensor = torch.mul(valid_actions, torch.exp(Q_tensor))  
                     valid_policy_tensor = valid_Q_tensor / torch.sum(valid_Q_tensor, dim=1, keepdim=True)
 
                     target = Q_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
@@ -566,11 +575,52 @@ if __name__ == '__main__':
                     loss.backward()
                     optimizer.step()
 
+
             # End epoch
             win_rate = p1.wins/ BATCH_SIZE #total win rate over all games
             print('Win rate: ' + str(win_rate))
             p1.wins = 0
+            train_win_array.append(win_rate)
             #p1.empty_buffer()
+
+            #do an eval rou
+            if(i%5 == 4):
+                p1.network.eval()
+                p1.evalmode=True
+
+                p1wins, p2wins = 0, 0
+
+                for j in range(BATCH_SIZE): 
+                    game_coordinator.run_learning_episode(p1, p2)
+                    p1.clear_history()
+                    p2.clear_history()
+                    p1.end_traj()
+
+                p1.evalmode=False
+                p1wins = p1.wins
+
+                p1winrate = p1wins / BATCH_SIZE
+                p2winrate = 1 - p1winrate 
+            
+                max_test_winrate = max(p1winrate, max_winrate)
+
+                print('[Epoch {:3d}: Evaluation]  '.format(i) )
+                print()
+                print('Player 1 | win rate : {0:.4f} |  '.format(p1winrate) + 'wins : {:4d}  '.format(p1wins) + int(50 * p1winrate) * '#')
+                print('Player 2 | win rate : {0:.4f} |  '.format(p2winrate) + 'wins : {:4d}  '.format(p2wins) + int(50 * p2winrate) * '#')
+                print()
+                p1.wins=0
+                if(p1winrate >= max_test_winrate):
+                    torch.save(p1.network.state_dict(), 'output/network_'+'_'+str(i)+'.pth')
+                win_array.append(p1winrate)
+
+        with open('output/results' + '.csv', 'w') as myfile:
+             wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+             wr.writerow(win_array)
+
+        with open('output/train_results' + '.csv', 'w') as myfile:
+             wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+             wr.writerow(train_win_array)
 
 
 

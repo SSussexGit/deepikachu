@@ -309,8 +309,8 @@ def run_learning_episode(p1_agent, p2_agent):
     # start game 
     # simulator.stdin.write('>start {"formatid":"gen5randombattle"}\n')
     simulator.stdin.write('>start {"formatid":"gen5ou"}\n')
-    simulator.stdin.write('>player p1 {"name":"' + player1.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
-    simulator.stdin.write('>player p2 {"name":"' + player2.name + '"' + ',"team":"' + teams_data.team1 +'" }\n')
+    simulator.stdin.write('>player p1 {"name":"' + player1.name + '"' + ',"team":"' + teams_data.team3 +'" }\n')
+    simulator.stdin.write('>player p2 {"name":"' + player2.name + '"' + ',"team":"' + teams_data.team3 +'" }\n')
     # simulator.stdin.write('>player p1 {"name":"' + player1.name + '" }\n')
     # simulator.stdin.write('>player p2 {"name":"' + player2.name +'" }\n')
     
@@ -409,36 +409,9 @@ if __name__ == '__main__':
     # python game_coordinator.py -p1 default -p2 default
     If not provied, use default agent
     '''
-    torch.manual_seed(42)
-    np.random.seed(42)
 
-    state_embedding_settings = {
-        'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
-        'type' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_TYPE},
-        'move' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE},
-        'move_type' :   {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
-        'ability' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ABILITY},
-        'item' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ITEM},
-        'condition' :   {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_CONDITION},
-        'weather' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_WEATHER},
-        'alive' :       {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ALIVE},
-        'disabled' :    {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_DISABLED},
-        'spikes' :      {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_SPIKES},
-        'toxicspikes' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_TOXSPIKES},
-        'fieldeffect' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_FIELD},
-    }   
 
-    d_player = 16
-    d_opp = 16
-    d_field = 16
-
-    # init neural net
-    p1net = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.5, softmax=False)
-    p1net.load_state_dict(torch.load('network_14.pth'))
-    p1net.eval()
-    p1net.evalmode = True
-    p1 = SACAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, 
-        network=p1net)
+    p1 = RandomAgent(id='p1', name='Red')
     p2 = RandomAgent(id='p2', name='Blue')
 
     epochs = 5
@@ -451,8 +424,6 @@ if __name__ == '__main__':
 
         for j in range(games_per_epoch): 
             winner = run_learning_episode(p1, p2)
-            if(isinstance(p1, SACAgent)):
-                p1.empty_buffer()
             p1.clear_history()
             p2.clear_history()
             print('Winner: ', winner)
