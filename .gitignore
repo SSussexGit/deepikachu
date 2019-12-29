@@ -1,3 +1,6 @@
+output/
+
+
 /config/*
 !/config/formats.js
 /logs/*

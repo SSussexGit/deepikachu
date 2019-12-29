@@ -25,9 +25,9 @@ from data_pokemon import *
 import neural_net
 from neural_net import DeePikachu0
 
-EPOCHS = 10
+EPOCHS = 100
 MAX_GAME_LEN = 4000 #max length is 200 but if you u-turn every turn you move twice per turn
-BATCH_SIZE = 8 #100
+BATCH_SIZE = 32 # 8 #100
 ACTION_SPACE_SIZE = 10 #4 moves and 6 switches
 
 def action_to_int(action):
@@ -469,23 +469,33 @@ if __name__ == '__main__':
 
     d_player = 16
     d_opp = 16
-    d_field = 16
+    d_field = 8
 
     p1 = SACAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, 
-        network=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.0, softmax=False))
+        network=DeePikachu0(
+            state_embedding_settings, 
+            d_player=d_player, 
+            d_opp=d_opp, 
+            d_field=d_field, 
+            dropout=0.0, 
+            attention=True))
+            
     p2 = RandomAgent(id='p2', name='Blue')
 
-    optimizer = optim.Adam(p1.network.parameters(), lr=0.001, weight_decay=1e-4)
+    # lr = 0.0004 # from SAC paper appendix
+    lr = 0.001 
+    weight_decay = 1e-4
+    optimizer = optim.Adam(p1.network.parameters(), lr=lr, weight_decay=weight_decay)
 
-    val_net=DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.5, softmax=False)
-    val_optimizer = optim.Adam(p1.network.parameters(), lr=0.001, weight_decay=1e-4)
+    # initialize value target at current network
+    v_target_net = copy.deepcopy(p1.network)
 
-    value_loss_fun = nn.MSELoss(reduction='mean')
+    mse_loss = nn.MSELoss(reduction='mean')
 
-    train_update_iters = 20
+    train_update_iters = 10
 
     alpha = 0.005
-    warm_up = 1 #number of epochs playing randomly
+    warm_up = 3 #number of epochs playing randomly
     minibatch_size = 50
     p1.minibatch_size = minibatch_size
     max_winrate = 0
@@ -526,6 +536,13 @@ if __name__ == '__main__':
 
             if(p1.total_tuples > p1.minibatch_size):
                 for _ in range(train_update_iters):
+
+                    '''
+                    Soft Actor critic 
+                    (Discrete, so no policy net)
+                    '''
+
+                    # Random sample from buffer (experience replay)
                     states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1.get()
 
                     actions = torch.tensor(actions, dtype=torch.long)
@@ -537,55 +554,104 @@ if __name__ == '__main__':
                     dones = torch.tensor(dones, dtype=torch.long)
 
                     total_traj_len = actions.shape[0]
-                    # Q step
-                    #print('Q step')
-                    optimizer.zero_grad()
-                    '''
+
+                    # compute supervised learning targets
                     with torch.no_grad():
-                        _, _, value2_tensor = val_net(states2)
-                        value2_tensor = 0.5
-            
-
-                    Q_tensor, _, _ = p1.network(states) # (batch, 10), (batch, )       
-
-                    
-                    Q_action_taken = Q_tensor[torch.arange(total_traj_len), actions]
-                    loss =  value_loss_fun(Q_action_taken, rews + p1.gamma * (1-dones) * value2_tensor) 
-                    print(loss)
-                    loss.backward()
-                    optimizer.step()    
-                    '''
-
-                    # Value_step
-                    #print('Value step')
-                    
-                    optimizer.zero_grad()
-                    with torch.no_grad():
-                        Q_tensor, _, _ = val_net(states) 
                         
+                        # value function target for s'
+                        v_target_net.eval()
+                        _, _, v_tensor_fixed = v_target_net(states2)
+                        v_target_net.train()
 
-                    _, _, value_tensor = p1.network(states) 
+                        # q function for s, a pairs
+                        p1.network.eval()
+                        q_tensor_A_fixed, q_tensor_B_fixed, _ = p1.network(states)
+                        p1.network.train()
 
-                    valid_Q_tensor = torch.mul(valid_actions, torch.exp(Q_tensor))  
-                    valid_policy_tensor = valid_Q_tensor / torch.sum(valid_Q_tensor, dim=1, keepdim=True)
 
-                    target = Q_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
-                    loss = value_loss_fun(target, value_tensor)
-                    print(loss)
+                        # q function regression target
+                        q_target = rews + p1.gamma * (1 - dones) * v_tensor_fixed
+                        
+                        # v function regression target (min over both q heads:)
+                        # 1
+                        valid_q_A = torch.mul(valid_actions, torch.exp(q_tensor_A_fixed))
+                        valid_policy_A = valid_q_A / valid_q_A.sum(dim=1, keepdim=True)
+
+                        actions_tilde = torch.distributions.Categorical(probs=valid_policy_A).sample()
+
+                        v_target_A = q_tensor_A_fixed[torch.arange(total_traj_len), actions_tilde] \
+                            - alpha * torch.log(valid_policy_A[torch.arange(total_traj_len), actions_tilde])
+
+                        # 2
+                        valid_q_B = torch.mul(valid_actions, torch.exp(q_tensor_B_fixed))
+                        valid_policy_B = valid_q_B / valid_q_B.sum(dim=1, keepdim=True)
+
+                        v_target_B = q_tensor_B_fixed[torch.arange(total_traj_len), actions_tilde] \
+                            - alpha * torch.log(valid_policy_B[torch.arange(total_traj_len), actions_tilde])
+                        
+                        # min
+                        v_target = torch.min(torch.stack([v_target_A, v_target_B], dim=1), dim=1)[0]
+
+
+                    # run updates on the networks
+                    p1.network.train()
+
+                    # Q step A
+                    optimizer.zero_grad()
+                    q_tensor_A, _, _ = p1.network(states)
+                    q_action_taken_A = q_tensor_A[torch.arange(total_traj_len), actions]
+
+                    loss = mse_loss(q_action_taken_A, q_target)
+                    loss.backward()
+                    optimizer.step()  
+
+                    print('Q step A: ', loss.detach().item(), end='\t')
+
+                    # Q step B
+                    optimizer.zero_grad()
+                    _, q_tensor_B, _ = p1.network(states)
+                    q_action_taken_B = q_tensor_B[torch.arange(
+                        total_traj_len), actions]
+
+                    loss = mse_loss(q_action_taken_B, q_target)
                     loss.backward()
                     optimizer.step()
 
+                    print('Q step B: ', loss.detach().item(), end='\t')
+
+                    # V step
+                    optimizer.zero_grad()
+                    _, _, value_tensor = p1.network(states)
+                   
+                    loss = mse_loss(value_tensor, v_target)
+                    loss.backward()
+                    optimizer.step()
+
+                    print('V step: ', loss.detach().item(), end='\n')
+
+                    # Update target network for value function using exponential moving average
+
+                    with torch.no_grad():
+                                
+                        polyak = 0.995 # (default in openai pseudocode)
+                        for param, param_target in zip(p1.network.parameters(), v_target_net.parameters()):
+                            param_target.data.copy_(polyak * param_target.data + (1 - polyak) * param.data)
+                            
+
 
             # End epoch
-            win_rate = p1.wins/ BATCH_SIZE #total win rate over all games
-            print('Win rate: ' + str(win_rate))
+            win_rate = float(p1.wins) / float(BATCH_SIZE) 
+            # total win rate over all games in batch
+            print('Batch win rate: ' + str(win_rate))
             p1.wins = 0
             train_win_array.append(win_rate)
             #p1.empty_buffer()
 
-            #do an eval rou
-            if(i%5 == 4):
+            #do an eval epoch
+            if (i % 3 == 0):
                 p1.network.eval()
+                
+                # agent plays argmax of q function
                 p1.evalmode=True
 
                 p1wins, p2wins = 0, 0
@@ -598,29 +664,30 @@ if __name__ == '__main__':
 
                 p1.evalmode=False
                 p1wins = p1.wins
+                p2wins = BATCH_SIZE - p1wins
 
-                p1winrate = p1wins / BATCH_SIZE
+                p1winrate = float(p1wins) / float(BATCH_SIZE)
                 p2winrate = 1 - p1winrate 
             
                 max_test_winrate = max(p1winrate, max_winrate)
 
-                print('[Epoch {:3d}: Evaluation]  '.format(i) )
-                print()
+                print('\n[Epoch {:3d}: Evaluation]  \n'.format(i) )
                 print('Player 1 | win rate : {0:.4f} |  '.format(p1winrate) + 'wins : {:4d}  '.format(p1wins) + int(50 * p1winrate) * '#')
                 print('Player 2 | win rate : {0:.4f} |  '.format(p2winrate) + 'wins : {:4d}  '.format(p2wins) + int(50 * p2winrate) * '#')
                 print()
+
                 p1.wins=0
                 if(p1winrate >= max_test_winrate):
                     torch.save(p1.network.state_dict(), 'output/network_'+'_'+str(i)+'.pth')
                 win_array.append(p1winrate)
 
         with open('output/results' + '.csv', 'w') as myfile:
-             wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
-             wr.writerow(win_array)
+            wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+            wr.writerow(win_array)
 
         with open('output/train_results' + '.csv', 'w') as myfile:
-             wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
-             wr.writerow(train_win_array)
+            wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+            wr.writerow(train_win_array)
 
 
 

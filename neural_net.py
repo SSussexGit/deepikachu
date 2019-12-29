@@ -130,10 +130,6 @@ class State(torch.nn.Module):
             # param.data.normal_(mean=0.0, std=0.001) 
             param.data.uniform_(-1.0, 1.0) 
 
-
-    # def __convert_bool(self, b):
-    #     return torch.tensor(1) if b else torch.tensor(0) 
-
     def __recursive_replace(self, x):
 
         '''Recursively replaces tokens with embeddings in dict x'''
@@ -466,7 +462,7 @@ class PokemonRepresentation0(nn.Module):
     '''
     Creates representation of `pokemon_state` 
     '''
-    def __init__(self, d_out, s, dropout=0.1):
+    def __init__(self, d_out, s, dropout=0.1, attention=False):
         super(PokemonRepresentation0, self).__init__()
 
         d_pokemon = s['pokemon']['embed_dim']
@@ -484,7 +480,8 @@ class PokemonRepresentation0(nn.Module):
 
         # shared move representation learned for each move (permutation EQUIvariance)  
         self.move_embed = MoveRepresentation0(d_out, s)
-        self.move_relate = ResidualSelfAttention0(heads=4, d_model=d_out, dropout=dropout)
+        self.move_relate = ResidualSelfAttention0(
+            heads=4, d_model=d_out, dropout=dropout) if attention else nn.Identity()
 
         # relationship deep set function (permutation INvariance)      
         self.move_DS = DeepSet0(
@@ -546,18 +543,14 @@ class PlayerRepresentation0(nn.Module):
     '''
     `player`/  and `opponent/` 
     '''
-    def __init__(self, d_out, s, dropout=0.1):
+    def __init__(self, d_out, s, dropout=0.1, attention=False):
         super(PlayerRepresentation0, self).__init__()
 
         # pokemon representations (shared/permutation equivariant for team pokemon)
-        self.active_pokemon = PokemonRepresentation0(d_out, s, dropout=dropout)
-        self.team_pokemon = PokemonRepresentation0(d_out, s, dropout=dropout)
-        self.team_pokemon_relate = ResidualSelfAttention0(heads=4, d_model=d_out, dropout=dropout)
-
-        # relationship deep set function (permutation INvariance)      
-        self.move_DS = DeepSet0(
-            FeedForward0(d_out, d_out, d_out), # phi
-            FeedForward0(d_out, d_out, d_out)) # rho
+        self.active_pokemon = PokemonRepresentation0(d_out, s, dropout=dropout, attention=attention)
+        self.team_pokemon = PokemonRepresentation0(d_out, s, dropout=dropout, attention=attention)
+        self.team_pokemon_relate = ResidualSelfAttention0(
+            heads=4, d_model=d_out, dropout=dropout) if attention else nn.Identity()
 
         # team pokemon relationship deep set function (permutation INvariance)      
         self.team_DS = DeepSet0(
@@ -594,8 +587,7 @@ class PlayerRepresentation0(nn.Module):
 
         active_pokemon, moves_equivariant = self.active_pokemon(x['active'], active_boosts)
 
-        # team pokemon representation (equivariant move reps are discarded for pokemon reps)
-        # equivariant  
+        # team pokemon representation (equivariant move reps are discarded for individual pokemon reps)
         team_pokemon = torch.stack([self.team_pokemon(x['team'][i], team_boosts)[0] for i in range(6)], dim=1)
         team_pokemon_equivariant = self.team_pokemon_relate(team_pokemon)
 
@@ -616,13 +608,12 @@ Final net
 
 class DeePikachu0(nn.Module):
     '''Value and Policy Net'''
-    def __init__(self, state_embedding_settings, d_player=128, d_opp=64, d_field=32, dropout=0.1, softmax=True):
+    def __init__(self, state_embedding_settings, d_player=128, d_opp=64, d_field=32, dropout=0.1, attention=False):
         super(DeePikachu0, self).__init__()
 
         self.d_player = d_player
         self.d_opp = d_opp
         self.d_field = d_field
-        self.softmax = softmax
 
         d_hidden = d_player + d_opp + d_field
         
@@ -630,16 +621,11 @@ class DeePikachu0(nn.Module):
         self.state_embedding = State(state_embedding_settings)
 
         # major hidden state 
-        self.player = PlayerRepresentation0(d_out=d_player, s=state_embedding_settings)
+        self.player = PlayerRepresentation0(d_out=d_player, s=state_embedding_settings, attention=attention)
 
-        self.opponent = PlayerRepresentation0(d_out=d_opp, s=state_embedding_settings)
+        self.opponent = PlayerRepresentation0(d_out=d_opp, s=state_embedding_settings, attention=attention)
 
         self.field = FieldRepresentation0(d_out=d_field, s=state_embedding_settings)
-
-        self.combine = nn.Sequential(
-            ResidualFeedForward0(d_hidden, d_hidden, dropout=dropout),
-            ResidualFeedForward0(d_hidden, d_hidden, dropout=dropout),
-        )
 
         # value function
         self.value_function = FeedForward0(d_hidden, d_hidden, 1, dropout=dropout)
@@ -655,11 +641,11 @@ class DeePikachu0(nn.Module):
             
         self.q_function = nn.ModuleList([
             nn.Sequential(
-                ResidualSelfAttention0(heads=4, d_model=d_player, dropout=dropout),
+                ResidualSelfAttention0(heads=4, d_model=d_player, dropout=dropout) if attention else nn.Identity(),
                 FeedForward0(d_player, d_player, 1, dropout=dropout),
             ),
             nn.Sequential(
-                ResidualSelfAttention0(heads=4, d_model=d_player, dropout=dropout),
+                ResidualSelfAttention0(heads=4, d_model=d_player, dropout=dropout) if attention else nn.Identity(),
                 FeedForward0(d_player, d_player, 1, dropout=dropout),
             )])
         
@@ -680,7 +666,7 @@ class DeePikachu0(nn.Module):
         hidden = torch.cat([player, opponent, f], dim=1)
 
         # value function
-        value = self.value_function(hidden).squeeze(dim=1).sigmoid() # - apparently sigmoid not done in practice
+        value = self.value_function(hidden).squeeze(dim=1)#.sigmoid() # - apparently sigmoid not done in practice
 
         # q function: self attend to different action options 
         moves_and_hidden = torch.cat(
@@ -696,7 +682,7 @@ class DeePikachu0(nn.Module):
         all_actions_A =  torch.cat([
             self.q_combine_moves_hidden[0](moves_and_hidden), 
             self.q_combine_pokemon_hidden[0](pokemon_and_hidden)], dim=1)
-        q_values_A = self.q_function[0](all_actions_A).squeeze(dim=2).sigmoid() #- apparently sigmoid not done in practice
+        q_values_A = self.q_function[0](all_actions_A).squeeze(dim=2)#.sigmoid() #- apparently sigmoid not done in practice
 
         all_actions_B =  torch.cat([
             self.q_combine_moves_hidden[1](moves_and_hidden), 
