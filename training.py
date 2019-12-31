@@ -395,7 +395,8 @@ class SACAgent(LearningAgent):
         '''
         Call after a batch to return a sample from the buffer
         '''
-        idxs = np.arange(0, self.total_tuples)#np.random.randint(0, self.total_tuples, size=self.minibatch_size)
+        #idxs = np.arange(0, self.total_tuples)
+        idxs = np.random.randint(0, self.total_tuples, size=self.minibatch_size)
         # nornalize advantage values to mean 0 std 1
         #adv_mean = np.mean(self.adv_buffer)
         #adv_std = np.std(self.adv_buffer)
@@ -507,7 +508,15 @@ if __name__ == '__main__':
         p1.network.load_state_dict(torch.load('output/network__9.pth'))
         p1.network.eval()
         p1.evalmode = True
-        winner = game_coordinator.run_learning_episode(p1, p2)
+        for i in range(0, 2):
+            winner = game_coordinator.run_learning_episode(p1, p2)
+        for i in range(0, 10):
+            print(p1.recurse_index_state(copy.deepcopy(p1.state_buffer), i)['opponent']['active'])
+            print(p1.action_buffer[i])
+            print()
+            print(p1.recurse_index_state(copy.deepcopy(p1.state2_buffer), i)['opponent']['active'])
+            print()
+            #print(p1.recurse_index_state(copy.deepcopy(p1.state_buffer), i)['opponent']['active'])
         p1.clear_history()
         p2.clear_history()
         p1.end_traj()
@@ -584,10 +593,10 @@ if __name__ == '__main__':
 
                         # 2
                         valid_q_B = torch.mul(valid_actions, torch.exp(q_tensor_B_fixed))
-                        valid_policy_B = valid_q_B / valid_q_B.sum(dim=1, keepdim=True)
+                        #valid_policy_B = valid_q_B / valid_q_B.sum(dim=1, keepdim=True) #XKCD only one valid policy which is determined by Q_A in continuous analog
 
                         v_target_B = q_tensor_B_fixed[torch.arange(total_traj_len), actions_tilde] \
-                            - alpha * torch.log(valid_policy_B[torch.arange(total_traj_len), actions_tilde])
+                            - alpha * torch.log(valid_policy_A[torch.arange(total_traj_len), actions_tilde])
                         
                         # min
                         v_target = torch.min(torch.stack([v_target_A, v_target_B], dim=1), dim=1)[0]
@@ -630,13 +639,12 @@ if __name__ == '__main__':
                     print('V step: ', loss.detach().item(), end='\n')
 
                     # Update target network for value function using exponential moving average
-
+                    
                     with torch.no_grad():
                                 
                         polyak = 0.995 # (default in openai pseudocode)
                         for param, param_target in zip(p1.network.parameters(), v_target_net.parameters()):
                             param_target.data.copy_(polyak * param_target.data + (1 - polyak) * param.data)
-                            
 
 
             # End epoch

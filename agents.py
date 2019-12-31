@@ -329,8 +329,6 @@ class DefaultAgent:
             pokemon_dict = copy.deepcopy(self.state[player]['team'][pokemon_dict_index])
             if(pokemon_dict['pokemon_id'] == pokedex_data[game_name_to_dex_name(pokemon_string)]['num']):
                 pokemon_location = pokemon_dict_index
-            if(pokemon_dict['pokemon_id'] == pokemon_token):
-                pokemon_location = pokemon_dict_index
         if(pokemon_location == None):
             raise ValueError("could not find pokemon in opponents team: " + pokemon_string)
         return pokemon_location
@@ -438,7 +436,7 @@ class DefaultAgent:
                     self.state['opponent']['boosts']['opp'+stat_string] = 0
 
             #minordamage to update hp
-            if message['id'] == 'minordamage' or message['id'] == 'minorheal':
+            if message['id'] == 'minor_damage' or message['id'] == 'minor_heal':
                 pokemon_location = self.get_pokemon_index(pokemon_name)
                 #need to update the hp, status
                 #split hp on the space, then on the /
@@ -452,13 +450,13 @@ class DefaultAgent:
                 else: 
                     self.state['opponent']['team'][pokemon_location]['condition'] = EMPTY
 
-                if(message['id'] == 'minorheal'):
+                if(message['id'] == 'minor_heal'):
                     if('move' in message):
                         if('item' in message['move']): #if word item is in the message
                             item_string = message['move'].split(': ')[-1]#extract the item from the heal message and impute in the item slot
                             self.state['opponent']['team'][pokemon_location]['item'] = item_data[game_name_to_dex_name(item_string)]['num']
 
-                if(message['id'] == 'minordamage'):
+                if(message['id'] == 'minor_damage'):
                     if('move' in message):
                         if('item' in message['move']): #if word item is in the message
                             item_string = message['move'].split(': ')[-1]#extract the item from the heal message and impute in the item slot
@@ -472,7 +470,7 @@ class DefaultAgent:
             #would be helpful to get in info about taunt, encore, torment
 
             #handle minor status message
-            if(message['id'] == 'minorstatus'):
+            if(message['id'] == 'minor_status'):
                 pokemon_location = self.get_pokemon_index(pokemon_name)
                 status_string = message['status']
                 if (status_string == 'confusion'):
@@ -481,7 +479,7 @@ class DefaultAgent:
                     self.state['opponent']['team'][pokemon_location]['condition'] = status_data[status_string]['num']
 
             #handle minorstart for confusion induced by moves like outrage ending
-            if(message['id'] in ['minorstart', 'minorend']):
+            if(message['id'] in ['minor_start', 'minor_end']):
                 self.handle_minorstart(player='opponent')
                     
                 #haven't done effect:"typechange" because not got the capacity to reset the type once it switches out
@@ -537,7 +535,7 @@ class DefaultAgent:
                 self.state['opponent']['team'][pokemon_location]['item'] = 0
 
             #handle reveal of items of getting item back
-            if(message['id'] == 'minoritem'):
+            if(message['id'] == 'minor_item'):
                 pokemon_location = self.get_pokemon_index(pokemon_name)
                 self.state['opponent']['team'][pokemon_location]['item'] = items_data[game_name_to_dex_name(message['item'])]['num']
 
@@ -591,7 +589,7 @@ class DefaultAgent:
 
 
             #handle minorstart for confusion induced by moves like outrage ending
-            if(message['id'] in ['minorstart', 'minorend']):
+            if(message['id'] in ['minor_start', 'minor_end']):
                 self.handle_minorstart(player='player')
 
             #if the pokemon of interest is active, update the active slot
