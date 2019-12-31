@@ -55,6 +55,8 @@ class VPGBuffer:
     Buffer that stores trajectories from a batch of games
     """
     def _init_(self, size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95):
+        self.state = copy.deepcopy(default_state)
+
         self.buffer_size = size
         self.state_buffer = create_2D_state(self.buffer_size)
         self.state2_buffer = create_2D_state(self.buffer_size)
@@ -97,7 +99,7 @@ class VPGBuffer:
         #compute rewards-to-go
         self.rtg_buffer[path_slice] = training_helpers.discount_cumsum(rews, self.gamma)[:-1]
 
-
+        self.state = copy.deepcopy(default_state)
         self.ptr_start = self.ptr
         return
 
@@ -396,14 +398,13 @@ class SACAgent(LearningAgent):
         Call after a batch to return a sample from the buffer
         '''
         #idxs = np.arange(0, self.total_tuples)
-        idxs = np.random.randint(0, self.total_tuples, size=self.minibatch_size)
+        idxs = np.random.choice(self.total_tuples, size=self.minibatch_size, replace=False)
         # nornalize advantage values to mean 0 std 1
         #adv_mean = np.mean(self.adv_buffer)
         #adv_std = np.std(self.adv_buffer)
         #self.adv_buffer = (self.adv_buffer - adv_mean) / adv_std
         return [self.recurse_index_state(copy.deepcopy(self.state_buffer), idxs), self.recurse_index_state(copy.deepcopy(self.state2_buffer), idxs), self.action_buffer[idxs], self.adv_buffer[idxs], 
                 self.rtg_buffer[idxs], self.logp_buffer[idxs], self.valid_actions_buffer[idxs], self.rew_buffer[idxs], self.done_buffer[idxs]]
-
 
 #create a class instance for our learning agent needs a policy architecture and value function architecture
 #idea for ablation: train the value function on a fully observed state space instead of partially observed for the purpose of computing advantage
@@ -493,11 +494,11 @@ if __name__ == '__main__':
 
     mse_loss = nn.MSELoss(reduction='mean')
 
-    train_update_iters = 10
+    train_update_iters = 100
 
     alpha = 0.005
     warm_up = 3 #number of epochs playing randomly
-    minibatch_size = 50
+    minibatch_size = 100
     p1.minibatch_size = minibatch_size
     max_winrate = 0
     win_array = []
@@ -505,21 +506,28 @@ if __name__ == '__main__':
 
     #handle command line input whether to train or test
     if(len(sys.argv)>1 and sys.argv[1] == 'test'):
-        p1.network.load_state_dict(torch.load('output/network__9.pth'))
+        p1.network.load_state_dict(torch.load('output/network__3.pth'))
         p1.network.eval()
         p1.evalmode = True
         for i in range(0, 2):
             winner = game_coordinator.run_learning_episode(p1, p2)
+            p1.end_traj()
+            p1.clear_history()
+            p2.clear_history()
+        '''
+        #debug stuff
         for i in range(0, 10):
-            print(p1.recurse_index_state(copy.deepcopy(p1.state_buffer), i)['opponent']['active'])
+            print(p1.recurse_index_state(copy.deepcopy(p1.state_buffer), i)['player']['active'])
             print(p1.action_buffer[i])
+            print(p1.done_buffer[i])
+            print(p1.rew_buffer[i])
+            print(p1.valid_actions_buffer[i])
             print()
-            print(p1.recurse_index_state(copy.deepcopy(p1.state2_buffer), i)['opponent']['active'])
+            #print(p1.recurse_index_state(copy.deepcopy(p1.state2_buffer), i)['opponent']['active'])
             print()
             #print(p1.recurse_index_state(copy.deepcopy(p1.state_buffer), i)['opponent']['active'])
-        p1.clear_history()
-        p2.clear_history()
-        p1.end_traj()
+        print(p1.ptr)
+        '''
         print(p1.wins)
     else:
         for i in range(EPOCHS):
@@ -536,9 +544,10 @@ if __name__ == '__main__':
 
             for j in range(BATCH_SIZE): 
                 game_coordinator.run_learning_episode(p1, p2)
+                p1.end_traj()
                 p1.clear_history()
                 p2.clear_history()
-                p1.end_traj()
+                
 
 
             endttime = time.time()
@@ -563,7 +572,6 @@ if __name__ == '__main__':
                     dones = torch.tensor(dones, dtype=torch.long)
 
                     total_traj_len = actions.shape[0]
-
                     # compute supervised learning targets
                     with torch.no_grad():
                         
@@ -601,7 +609,8 @@ if __name__ == '__main__':
                         # min
                         v_target = torch.min(torch.stack([v_target_A, v_target_B], dim=1), dim=1)[0]
 
-
+                    #print(v_target)
+                    #print(v_target)
                     # run updates on the networks
                     p1.network.train()
 
@@ -661,6 +670,7 @@ if __name__ == '__main__':
                 
                 # agent plays argmax of q function
                 p1.evalmode=True
+                p1.warmup = False
 
                 p1wins, p2wins = 0, 0
 
