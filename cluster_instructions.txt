@@ -1,7 +1,7 @@
 This file gives instructions for running on the cluster. 
 
 1) login to leonhard by ssh: ssh [username]@login.leonhard.eth
-2) make a folder and git pull this directory
+2) make a folder and git pull this directory. Install Miniconda. Install nodejs using conda: conda install -c conda-forge nodejs. 
 3) in terminal run: module load python_gpu/3.7.1
 4) in the same folder as the training code: mkdir output
 5) to run a batch of 5 training episodes on gpu run:
