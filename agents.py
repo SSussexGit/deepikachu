@@ -418,7 +418,7 @@ class DefaultAgent:
                 self.state['opponent']['team'][pokemon_location]['hp'] = int(minmaxhp[0])
                 #if it has a status condition get it in there
                 if(len(hp_condition) == 2):
-                    if(hp_condition != 'fnt'):
+                    if(hp_condition[1] != 'fnt'):
                         self.state['opponent']['team'][pokemon_location]['condition'] = status_data[game_name_to_dex_name(hp_condition[1])]['num']
                 else: 
                     self.state['opponent']['team'][pokemon_location]['condition'] = EMPTY
@@ -445,7 +445,7 @@ class DefaultAgent:
                 self.state['opponent']['team'][pokemon_location]['hp'] = int(minmaxhp[0])
                 #if it has a status condition get it in there
                 if(len(hp_condition) == 2):
-                    if(hp_condition != 'fnt'):
+                    if(hp_condition[1] != 'fnt'):
                         self.state['opponent']['team'][pokemon_location]['condition'] = status_data[game_name_to_dex_name(hp_condition[1])]['num']
                 else: 
                     self.state['opponent']['team'][pokemon_location]['condition'] = EMPTY
@@ -480,7 +480,7 @@ class DefaultAgent:
 
             #handle minorstart for confusion induced by moves like outrage ending
             if(message['id'] in ['minor_start', 'minor_end']):
-                self.handle_minorstart(player='opponent')
+                self.handle_minorstartend(player='opponent')
                     
                 #haven't done effect:"typechange" because not got the capacity to reset the type once it switches out
 
@@ -590,7 +590,7 @@ class DefaultAgent:
 
             #handle minorstart for confusion induced by moves like outrage ending
             if(message['id'] in ['minor_start', 'minor_end']):
-                self.handle_minorstart(player='player')
+                self.handle_minorstartend(player='player')
 
             #if the pokemon of interest is active, update the active slot
             pokemon_location = self.get_pokemon_index(pokemon_name, "player")
