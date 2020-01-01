@@ -599,9 +599,6 @@ if __name__ == '__main__':
                             - alpha * torch.log(valid_policy_A[torch.arange(total_traj_len), actions_tilde])
 
                         # 2
-                        valid_q_B = torch.mul(valid_actions, torch.exp(q_tensor_B_fixed))
-                        #valid_policy_B = valid_q_B / valid_q_B.sum(dim=1, keepdim=True) #XKCD only one valid policy which is determined by Q_A in continuous analog
-
                         v_target_B = q_tensor_B_fixed[torch.arange(total_traj_len), actions_tilde] \
                             - alpha * torch.log(valid_policy_A[torch.arange(total_traj_len), actions_tilde])
                         

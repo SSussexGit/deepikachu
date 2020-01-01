@@ -1,6 +1,5 @@
 
 # coding=utf-8
-
 import time
 import sys
 import subprocess
@@ -27,35 +26,30 @@ from training import LearningAgent, int_to_action, action_to_int, SACAgent, ACTI
 from game_coordinator import *
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-VERBOSE = True
-MAX_GAME_LEN = 400 #max length is 200 but if you u-turn every turn you move twice per turn
+MAX_GAME_LEN = 400  # max length is 200 but if you u-turn every turn you move twice per turn
 
-'''
-Same as the typical request handling for LearningAgent but doesn do the forward pass, this is done outside
-Instead returns state that can be used for neural net
-'''
-'''
-This function then receives the output of the neural net and handles it, returning an action
-'''
-
-class ExperienceReplay():
-	def __init__(self, size = 20000, minibatch_size = 100):
+class ExperienceReplay:
+	def __init__(self, size=20000, minibatch_size=100, gamma=0.99):
 
 		self.replay_size = size
 		self.state_replay = create_2D_state(self.replay_size)
 		self.state2_replay = create_2D_state(self.replay_size)
-		self.action_replay = np.zeros(self.replay_size, dtype=int) #won't overflow since max number is >> possible length
+		# won't overflow since max number is >> possible length
+		self.action_replay = np.zeros(self.replay_size, dtype=int)
 		self.adv_replay = np.zeros(self.replay_size, dtype=np.float32)
 		self.rew_replay = np.zeros(self.replay_size, dtype=np.float32)
-		self.rtg_replay = np.zeros(self.replay_size, dtype=np.float32) #the rewards-to-go
-		self.val_replay = np.zeros(self.replay_size, dtype=np.float32) #save in np because we recompute value a bunch anyway
-		self.logp_replay = np.zeros(self.replay_size, dtype=np.float32)#logp value
-		self.valid_actions_replay = np.zeros((self.replay_size, ACTION_SPACE_SIZE)) #stores what actions were valid at that time point as a 1hot
+		self.rtg_replay = np.zeros(
+			self.replay_size, dtype=np.float32)  # the rewards-to-go
+		# save in np because we recompute value a bunch anyway
+		self.val_replay = np.zeros(self.replay_size, dtype=np.float32)
+		self.logp_replay = np.zeros(self.replay_size, dtype=np.float32)  # logp value
+		# stores what actions were valid at that time point as a 1hot
+		self.valid_actions_replay = np.zeros((self.replay_size, ACTION_SPACE_SIZE))
 		self.gamma = gamma
-		self.total_tuples = 0 #so we know where to cut off vectors above for updates
-		self.ptr_start = 0 #an index of the start of the trajectory currently being put in memory
-		self.ptr = 0 #an index of the next tuple to be put in the buffer
-		self.done_replay = np.zeros(self.replay_size, dtype = int)
+		self.total_tuples = 0  # so we know where to cut off vectors above for updates
+		self.ptr_start = 0  # an index of the start of the trajectory currently being put in memory
+		self.ptr = 0  # an index of the next tuple to be put in the buffer
+		self.done_replay = np.zeros(self.replay_size, dtype=int)
 
 		self.minibatch_size = minibatch_size
 
@@ -64,9 +58,11 @@ class ExperienceReplay():
 		Stores everything in the replay and increments the pointer
 		'''
 
-		self.state_replay = self.recurse_store_state(self.state_replay, state, self.ptr)
+		self.state_replay = self.recurse_store_state(
+			self.state_replay, state, self.ptr)
 
-		self.state2_replay = self.recurse_store_state(self.state2_replay, state2, self.ptr)
+		self.state2_replay = self.recurse_store_state(
+			self.state2_replay, state2, self.ptr)
 
 		self.action_replay[self.ptr] = action
 
@@ -76,16 +72,16 @@ class ExperienceReplay():
 
 		self.done_replay[self.ptr] = done
 
-		#self.valid_actions[self.ptr] 
+		#self.valid_actions[self.ptr]
 		for action_index in range(ACTION_SPACE_SIZE):
 			if(valid_actions[action_index] == 1):
 				self.valid_actions_replay[self.ptr, action_index] = 1
 
-
-		self.ptr+=1
+		self.ptr += 1
 		if(self.ptr == self.replay_size):
 			self.ptr = 0
-		self.total_tuples = max(self.ptr, self.total_tuples) #if full stay full else increment with pointer
+		# if full stay full else increment with pointer
+		self.total_tuples = max(self.ptr, self.total_tuples)
 		return
 
 	def recurse_store_state(self, state_buffer, state, index):
@@ -94,7 +90,8 @@ class ExperienceReplay():
 	    '''
 	    for field in state:
 	        if (isinstance(state[field], dict)):
-	            state_buffer[field] = self.recurse_store_state(state_buffer[field], state[field], index)
+	            state_buffer[field] = self.recurse_store_state(
+	            	state_buffer[field], state[field], index)
 	        else:
 	            state_buffer[field][index] = state[field]
 	    return state_buffer
@@ -105,7 +102,8 @@ class ExperienceReplay():
         '''
 		for field in state_holder:
 		    if (isinstance(state_holder[field], dict)):
-		        state_holder[field] = self.recurse_unfold_state(state_holder[field], states[field], index)
+		        state_holder[field] = self.recurse_unfold_state(
+		        	state_holder[field], states[field], index)
 		    else:
 		        state_holder[field] = states[field][index]
 		return state_holder
@@ -117,8 +115,10 @@ class ExperienceReplay():
 		self.ptr_start = self.ptr
 		for i in range(actions.shape[0]):
 			state_i = self.recurse_unfold_state(copy.deepcopy(default_state), states, i)
-			state2_i = self.recurse_unfold_state(copy.deepcopy(default_state), states2, i)
-			self.store_in_replay(state_i, state2_i, actions[i], logps[i], valid_actions[i], rews[i], dones[i])
+			state2_i = self.recurse_unfold_state(
+				copy.deepcopy(default_state), states2, i)
+			self.store_in_replay(
+				state_i, state2_i, actions[i], logps[i], valid_actions[i], rews[i], dones[i])
 
 	def recurse_index_state(self, state_replay, idxs):
 	    '''
@@ -126,7 +126,8 @@ class ExperienceReplay():
 	    '''
 	    for field in state_replay:
 	        if (isinstance(state_replay[field], dict)):
-	            state_replay[field] = self.recurse_index_state(state_replay[field], idxs)
+	            state_replay[field] = self.recurse_index_state(
+	            	state_replay[field], idxs)
 	        else:
 	            state_replay[field] = state_replay[field][idxs]
 	    return state_replay
@@ -136,16 +137,22 @@ class ExperienceReplay():
 		Returns a sample from the experience replay
 		'''
 		idxs = np.random.randint(0, self.total_tuples, size=self.minibatch_size)
-		return [self.recurse_index_state(copy.deepcopy(self.state_replay), idxs), self.recurse_index_state(copy.deepcopy(self.state2_replay), idxs), self.action_replay[idxs], self.adv_replay[idxs], 
-				self.rtg_replay[idxs], self.logp_replay[idxs], self.valid_actions_replay[idxs], self.rew_replay[idxs], self.done_replay[idxs]]
+		return [self.recurse_index_state(copy.deepcopy(self.state_replay), idxs), self.recurse_index_state(copy.deepcopy(self.state2_replay), idxs), self.action_replay[idxs], self.adv_replay[idxs],
+                    self.rtg_replay[idxs], self.logp_replay[idxs], self.valid_actions_replay[idxs], self.rew_replay[idxs], self.done_replay[idxs]]
+
 
 class ParallelLearningAgent(SACAgent):
 
 	def __init__(self, id, size, name='Ash', gamma=0.99, lam=0.95):
 		# force network=None (can still later store neural net in self.network field)
-		super(ParallelLearningAgent, self).__init__(id=id, name=name, size=size, gamma=gamma, lam=lam, network=None)
+		super(ParallelLearningAgent, self).__init__(
+			id=id, name=name, size=size, gamma=gamma, lam=lam, network=None)
 
 	def process_request_get_state(self, request):
+		'''
+		Same as the typical request handling for LearningAgent but doesn do the forward pass, this is done outside
+		Instead returns state that can be used for neural net
+		'''
 		self.request_update(request.message)
 		message = request.message['request_dict']
 
@@ -156,12 +163,15 @@ class ParallelLearningAgent(SACAgent):
 
 		if (valid_actions == []):
 			raise ValueError("no valid actions")
-		
+
 		return self.state, valid_actions
 
-
 	def process_request_receive_tensors(self, valid_actions, q_tensor, value):
-		print(self.state['opponent']['active'])
+
+		'''
+		This function then receives the output of the neural net and handles it, returning an action
+		'''
+
 		is_teampreview = ('teamspec' in valid_actions[0])
 		q_tensor = np.exp(q_tensor)
 
@@ -192,28 +202,26 @@ class ParallelLearningAgent(SACAgent):
 				print(policy_tensor)
 				ValueError("Nans found in policy tensor")
 
-			#check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
+			#check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option
 			if is_teampreview:
 				if(self.evalmode):
-					action = int_to_action(np.argmax(policy_tensor), teamprev = True)
+					action = int_to_action(np.argmax(policy_tensor), teamprev=True)
 				else:
-					action = int_to_action(np.random.choice(np.arange(10), p=policy_tensor), teamprev = True)
+					action = int_to_action(np.random.choice(
+						np.arange(10), p=policy_tensor), teamprev=True)
 			else:
 				if(self.evalmode):
-					action = int_to_action(np.argmax(policy_tensor), teamprev = False)
+					action = int_to_action(np.argmax(policy_tensor), teamprev=False)
 				else:
-					action = int_to_action(np.random.choice(np.arange(10), p=policy_tensor), teamprev = False)
-
+					action = int_to_action(np.random.choice(
+						np.arange(10), p=policy_tensor), teamprev=False)
 
 			#save logpaction in buffer (not really needed since it gets recomputed)
 			logp = np.log(1/min(1, len(valid_actions)))
 
-
 		self.store_in_buffer(self.state, action, value, logp, valid_actions)
 
 		return PlayerAction(self.id, action)
-
-
 
 
 def recurse_cat_state(empty_state, list_of_states):
@@ -222,13 +230,14 @@ def recurse_cat_state(empty_state, list_of_states):
 	'''
 	for field in empty_state:
 		if (isinstance(empty_state[field], dict)):
-			empty_state[field] = recurse_cat_state(empty_state[field], [state[field] for state in list_of_states])
+			empty_state[field] = recurse_cat_state(
+				empty_state[field], [state[field] for state in list_of_states])
 		else:
 			empty_state[field] = np.array([state[field] for state in list_of_states])
 	return empty_state
 
 
-def run_parallel_learning_episode(K, p1s, p2s, network):
+def run_parallel_learning_episode(K, p1s, p2s, network, verbose=True):
 	'''
 	takes in 2 agents and plays K games between them in parallel (one forward pass of network)
 	Assumes p1s are ParallelLearningAgent
@@ -238,31 +247,35 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 
 	# opens: `./pokemon-showdown simulate-battle` K times
 	sim = [
-		subprocess.Popen('./pokemon-showdown simulate-battle', 
-		shell=True,
-		stdin=subprocess.PIPE,
-		stdout=subprocess.PIPE,
-		universal_newlines=True) for _ in range(K)
+		subprocess.Popen('./pokemon-showdown simulate-battle',
+                   shell=True,
+                   stdin=subprocess.PIPE,
+                   stdout=subprocess.PIPE,
+                   universal_newlines=True) for _ in range(K)
 	]
 
 	# start all games
 	for k in range(K):
 		sim[k].stdin.write('>start {"formatid":"gen5ou"}\n')
-		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + teams_data.team3 +'" }\n')
-		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team3 +'" }\n')
-		sim[k].stdin.flush() 
+		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + teams_data.team3 + '" }\n')
+		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team3 + '" }\n')
+		sim[k].stdin.flush()
 
+	# game messages
 	games = [[] for _ in range(K)]
 
+	# outstanding requests for players
 	p1_outstanding_requests = [[] for _ in range(K)]
 	p2_outstanding_requests = [[] for _ in range(K)]
 
+	# true if and only if 1) at least 1 outstanding request for player
+	# AND 2) corresponding game updates have been sent to player (for temporal ordering)
 	p1_waiting_for_request_processing = [False for _ in range(K)]
 	p2_waiting_for_request_processing = [False for _ in range(K)]
 
 	ended, ended_ctr = [False for _ in range(K)], 0
 
-	if VERBOSE:
+	if verbose:
 		print('[Game threads ended] : ', end='', flush=True)
 
 	# regular game flow
@@ -275,21 +288,20 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 
 		# receive a simulation update and inform players for games not waiting for a request process
 		new_messages = [[] for _ in range(K)]
-		message_ids =  [set() for _ in range(K)]
+		message_ids = [set() for _ in range(K)]
 		for k in range(K):
 			if not p1_waiting_for_request_processing[k] and not p2_waiting_for_request_processing[k] and not ended[k]:
 				new = receive_simulator_message(sim[k])
 				new_messages[k] += new
 				message_ids[k] = retrieve_message_ids_set(sim[k], new)
 				games[k] += new
-			
 
-		# check if game is over    
+		# check if game is over
 		for k in range(K):
 			if not p1_waiting_for_request_processing[k] and not p2_waiting_for_request_processing[k] and not ended[k]:
 				if 'win' in message_ids[k]:
 					# terminate process
-					if VERBOSE:
+					if verbose:
 						if ended_ctr == 0:
 							print(f'{k}', end='', flush=True)
 						elif ended_ctr == K - 1:
@@ -302,7 +314,6 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 					sim[k].terminate()
 					sim[k].stdin.close()
 
-
 		# check what games are still running
 		if ended_ctr == K:
 			break
@@ -311,50 +322,49 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 			for k in range(K):
 				if not ended[k]:
 					running.append(k)
-		
-		# process new messages 
+
+		# process new messages
 		for k in running:
 			if not p1_waiting_for_request_processing[k] and not p2_waiting_for_request_processing[k]:
 				# if there are requests, record them for corresponding player (if not `wait` request)
-				if 'request' in message_ids[k]: 
+				if 'request' in message_ids[k]:
 					new_requests = filter_messages_by_id('request', new_messages[k])
 					for new in new_requests:
 						if not 'wait' in new.message['request_dict'].keys():
 							pl = new.adressed_players
 							if len(pl) != 1:
 								raise ValueError('Requests should be addressed to exactly one player')
-							pl = pl[0] 
+							pl = pl[0]
 							if pl == 'p1':
 								p1_outstanding_requests[k].append(new)
 							else:
 								p2_outstanding_requests[k].append(new)
 
-			
 				# regular message: send updates to players
 				else:
-					
-					# 1) update players on new information
-					p1s[k].receive_game_update(filter_messages_by_player('p1', new_messages[k]))
-					p2s[k].receive_game_update(filter_messages_by_player('p2', new_messages[k]))
 
-					# it is important that this occurs after players receiving the updates (stopped receiving requests)
-					# otherwise no more than one request will be read at a time
+					# 1) update players on new information
+					p1s[k].receive_game_update(
+						filter_messages_by_player('p1', new_messages[k]))
+					p2s[k].receive_game_update(
+						filter_messages_by_player('p2', new_messages[k]))
+
+					# it is important that this occurs after players receiving the updates (i.e. stopped receiving requests)
+					# otherwise a) no more than one request will be read at a time, b) request will be sent before game updates
 					if len(p1_outstanding_requests[k]) > 0:
 						p1_waiting_for_request_processing[k] = True
 					if len(p2_outstanding_requests[k]) > 0:
 						p2_waiting_for_request_processing[k] = True
 
-		
-
 		## Player 1 (neural net)
 		# process p1 requests as batch for computation speed-up (same network)
-		while all([len(p1_outstanding_requests[k]) >= 1 for k in running]):
-			
+		while all([p1_waiting_for_request_processing[k] for k in running]):
+
 			# at this point all requests should be for p1s and not contain `wait`
 			# get recent requests for each thread
 			reqs = [p1_outstanding_requests[k].pop(0) for k in running]
-	
-			# request one forward pass in batch from neural network 
+
+			# request one forward pass in batch from neural network
 			np_states, valid_actions = [], []
 			for idx, k in enumerate(running):
 				st, va = p1s[k].process_request_get_state(reqs[idx])
@@ -369,27 +379,28 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 
 			# finish up by sampling action
 			for idx, k in enumerate(running):
-				action = p1s[k].process_request_receive_tensors(valid_actions[idx], q_tensor[idx].cpu().numpy(), value_tensor[idx].cpu().numpy())
+				action = p1s[k].process_request_receive_tensors(
+					valid_actions[idx], q_tensor[idx].cpu().numpy(), value_tensor[idx].cpu().numpy())
 				send_choice_to_simulator(sim[k], action)
 
 			# if we are about to exit the loop, make sure fully handled games continue to be simulated
 			for k in running:
 				if len(p1_outstanding_requests[k]) == 0:
-					p1_waiting_for_request_processing[k] = False 		
-		
+					p1_waiting_for_request_processing[k] = False
 
 		## Player 2 (random agent)
-		# simply process all p2 requests per usual 
-		# (this can look like for p1 for self-play, though need to be careful with dead-locks where both while loops don't trigger)
+		# simply process all p2 requests per usual
+		# (this can look like for p1 for self-play, though need to be careful with dead-locks
+		# where both while loops don't trigger because waiting for requests on 2 different threads, if that can happen)
 		for k in running:
-			while p2_outstanding_requests[k]:
+			while p2_waiting_for_request_processing[k]:
 				req = p2_outstanding_requests[k].pop(0)
 				action = p2s[k].process_request(req)
 				send_choice_to_simulator(sim[k], action)
 
-			# p2s[k] ready to continue the simulation
-			p2_waiting_for_request_processing[k] = False 
-				
+				# p2s[k] ready to continue the simulation
+				if len(p2_outstanding_requests[k]) == 0:
+					p2_waiting_for_request_processing[k] = False
 
 	# collect results
 	winner_strings = []
@@ -400,7 +411,7 @@ def run_parallel_learning_episode(K, p1s, p2s, network):
 			p1s[k].won_game()
 		elif (winner_string == p2s[k].name):
 			p2s[k].won_game()
-		else: 
+		else:
 			raise ValueError('Unknown winner.')
 		winner_strings.append(winner_string)
 
@@ -436,225 +447,39 @@ if __name__ == '__main__':
 		'fieldeffect' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_FIELD},
 	}	
 
+
 	d_player = 16
 	d_opp = 16
-	d_field = 16
+	d_field = 8
 
 	# init neural net
-	p1net = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.5, softmax=False)
+	p1net = DeePikachu0(
+		state_embedding_settings,
+		d_player=d_player,
+		d_opp=d_opp,
+		d_field=d_field,
+		dropout=0.0,
+		attention=True)
 	p1net = p1net.to(DEVICE)
 
-	#p1net_val = DeePikachu0(state_embedding_settings, d_player=d_player, d_opp=d_opp, d_field=d_field, dropout=0.3, softmax=False)
-	#p1net_val = p1net_val.to(DEVICE)
+	BATCH_SIZE = 3
+	PARELLEL_PER_BATCH = 8
 
-	EPOCHS = 5
-	BATCH_SIZE = 1
-	PARELLEL_PER_BATCH = 1
-	BUFFER_SIZE = 2000
-	gamma=0.99#0.99
-	lam = 0.95 #not used
-	
 	# p1s/p2s are K individual agents storing game information, but the policy/value functions are computed by the same neural net
-	p1s = [ParallelLearningAgent(id='p1', name='Red', size = 20000, gamma=gamma, lam=lam) for _ in range(PARELLEL_PER_BATCH)]
+	p1s = [ParallelLearningAgent(id='p1', name='Red', size=20000,
+	                             gamma=0.99, lam=0.95) for _ in range(PARELLEL_PER_BATCH)]
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
-	alpha = 0.05
-	warmup = 1 #number of epochs playing randomly
-	minibatch_size = 1 #number of examples sampled in each update
+	for j in range(BATCH_SIZE):
 
-	replay = ExperienceReplay(size=80000, minibatch_size=minibatch_size)
+		winner_strings = run_parallel_learning_episode(
+			PARELLEL_PER_BATCH, p1s, p2s, p1net)
 
-	optimizer = optim.Adam(p1net.parameters(), lr=0.001, weight_decay=1e-4)
-	#optimizer_val = optim.Adam(p1net_val.parameters(), lr=0.01, weight_decay=1e-4)
-	#optimizer_val = SWA(optimizer_val_base, swa_start=50, swa_freq=1, swa_lr=0.01)
+		for k in range(PARELLEL_PER_BATCH):
 
-	value_loss_fun = nn.MSELoss(reduction='mean')
+			p1s[k].clear_history()
+			p2s[k].clear_history()
+			p1s[k].end_traj()
+			p1s[k].empty_buffer()
 
-	train_update_iters = 5
-	max_winrate = 0
-
-	win_array = []
-	train_win_array = []
-	# run games
-	for i in range(EPOCHS):
-		p1net.train()
-		print(' Epoch {:3d}: '.format(i))
-		starttime = time.time()
-
-		p1wins, p2wins = 0, 0
-
-		if(i >= warmup):
-			for k in range(PARELLEL_PER_BATCH):
-				p1s[k].warmup=False
-		else:
-			for k in range(PARELLEL_PER_BATCH):
-				p1s[k].warmup=True
-
-		for j in range(BATCH_SIZE): 
-
-			winner_strings = run_parallel_learning_episode(PARELLEL_PER_BATCH, p1s, p2s, p1net)
-			
-			for k in range(PARELLEL_PER_BATCH):
-				if(winner_strings[k] == p1s[k].name):
-					p1wins += 1
-				if(winner_strings[k] == p2s[k].name):
-					p2wins += 1
-
-				p1s[k].clear_history()
-				p2s[k].clear_history()
-				p1s[k].end_traj()
-				#empty the player buffers into the experience replay
-				spitstart = time.time()
-				states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1s[k].spit()
-				spitend = time.time()
-				#print('Spit time ' + '{0:.4f}'.format(spitend - spitstart))
-
-				swallowstart = time.time()
-				replay.swallow(states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones)
-				
-				swallowend = time.time()
-				#print('Swallow time ' + '{0:.4f}'.format(swallowend - swallowstart))
-				
-				
-				p1s[k].empty_buffer()
-
-		for _ in range(train_update_iters):
-			#for k in range(PARELLEL_PER_BATCH):
-			#extract everything with get, concat, then sample from it
-			states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = replay.get()
-			actions = torch.tensor(actions, dtype=torch.long)
-			advs = torch.tensor(advs, dtype=torch.float)
-			rtgs = torch.tensor(rtgs, dtype=torch.float)
-			logps = torch.tensor(logps, dtype=torch.float)
-			valid_actions = torch.tensor(valid_actions, dtype=torch.float).to(DEVICE)
-			rews = torch.tensor(rews, dtype=torch.float).to(DEVICE)
-			dones = torch.tensor(dones, dtype=torch.float).to(DEVICE)
-			total_traj_len = actions.shape[0]
-			#print(replay.state_replay)
-			print(states['player']['active'])
-			print(states2['player']['active'])
-			#print(states['opponent']['active'])
-			#print(states2['opponent']['active'])
-			print(actions)
-			print(dones)
-			print(rews)
-			# Q1 step
-			#print('Q1 step')
-			optimizer.zero_grad()
-
-			with torch.no_grad():
-			    _, _, value_nograd_tensor = p1net(states2)
-
-
-			Q1_tensor, _, _ = p1net(states) # (batch, 10), (batch, )       
-			Q_action_taken = Q1_tensor[torch.arange(total_traj_len), actions]
-			
-			loss =  value_loss_fun(Q_action_taken, rews + gamma * (1-dones) * value_nograd_tensor) 
-			#loss.backward()
-			optimizer.step() 
-
-			'''
-			# Q2 step
-			#print('Q2 step')
-			optimizer.zero_grad()
-
-			with torch.no_grad():
-			    _, _, value_nograd_tensor = p1net(states2)
-
-
-			_, Q2_tensor, value_tensor = p1net(states) # (batch, 10), (batch, )       
-
-			valid_Q_tensor = torch.exp(torch.mul(valid_actions, Q2_tensor))  
-			Q_action_taken = valid_Q_tensor[torch.arange(total_traj_len), actions]
-			loss =  value_loss_fun(Q_action_taken, rews + gamma * (1-dones) * value_nograd_tensor) 
-			print(loss)
-			loss.backward()
-			optimizer.step() 
-			'''
-
-			# Value_step
-			#print('Value step')
-
-			optimizer.zero_grad()
-			with torch.no_grad():
-			    Q1_nograd_tensor, _, _ = p1net(states) 
-			#Q_nograd_tensor = torch.min(Q1_nograd_tensor, Q2_nograd_tensor)
-			Q_nograd_tensor = Q1_nograd_tensor
-			_, _, value_tensor = p1net(states) 
-			
-			valid_Q_tensor = torch.mul(valid_actions, torch.exp(Q_nograd_tensor)) 
-			valid_policy_tensor = valid_Q_tensor / torch.sum(valid_Q_tensor, dim=1, keepdim=True)
-			
-			target = Q_nograd_tensor[torch.arange(total_traj_len), actions] - alpha*torch.log(valid_policy_tensor[torch.arange(total_traj_len), actions])
-			
-			loss = value_loss_fun(target, value_tensor)
-			#print(loss)
-			loss.backward()
-			optimizer.step()
-			
-
-		endttime = time.time()
-
-		p1winrate = p1wins / (p1wins + p2wins)
-		p2winrate = p2wins / (p1wins + p2wins)
-
-		train_win_array.append(p1winrate)
-
-		print('[Epoch {:3d}: ave game comp time]  '.format(i) + '{0:.4f}'.format((endttime - starttime)/(BATCH_SIZE * PARELLEL_PER_BATCH)))
-		print()
-		print('Player 1 | win rate : {0:.4f} |  '.format(p1winrate) + 'wins : {:4d}  '.format(p1wins) + int(50 * p1winrate) * '#')
-		print('Player 2 | win rate : {0:.4f} |  '.format(p2winrate) + 'wins : {:4d}  '.format(p2wins) + int(50 * p2winrate) * '#')
-		print()
-
-		#do an eval round
-		if(i%5 == 4):
-			p1net.eval()
-			for k in range(PARELLEL_PER_BATCH):
-				p1s[k].evalmode=True
-
-			p1wins, p2wins = 0, 0
-
-			for j in range(BATCH_SIZE): 
-
-				winner_strings = run_parallel_learning_episode(PARELLEL_PER_BATCH, p1s, p2s, p1net)
-				
-				for k in range(PARELLEL_PER_BATCH):
-					if(winner_strings[k] == p1s[k].name):
-						p1wins += 1
-					if(winner_strings[k] == p2s[k].name):
-						p2wins += 1
-
-					p1s[k].clear_history()
-					p2s[k].clear_history()
-					p1s[k].end_traj()
-					#empty the player buffers 
-					p1s[k].empty_buffer()
-
-			for k in range(PARELLEL_PER_BATCH):
-				p1s[k].evalmode=False
-
-			p1winrate = p1wins / (p1wins + p2wins)
-			p2winrate = p2wins / (p1wins + p2wins)
-		
-			max_test_winrate = max(p1winrate, max_winrate)
-
-			print('[Epoch {:3d}: Evaluation]  '.format(i) )
-			print()
-			print('Player 1 | win rate : {0:.4f} |  '.format(p1winrate) + 'wins : {:4d}  '.format(p1wins) + int(50 * p1winrate) * '#')
-			print('Player 2 | win rate : {0:.4f} |  '.format(p2winrate) + 'wins : {:4d}  '.format(p2wins) + int(50 * p2winrate) * '#')
-			print()
-
-			if(p1winrate >= max_test_winrate):
-				torch.save(p1net.state_dict(), 'output/network_'+str(c)+'_'+str(i)+'.pth')
-			win_array.append(p1winrate)
-
-	with open('output/results' + str(c) + '.csv', 'w') as myfile:
-	     wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
-	     wr.writerow(win_array)
-
-	with open('output/train_results' + str(c) + '.csv', 'w') as myfile:
-	     wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
-	     wr.writerow(train_win_array)
-
-
-
+		print('Winner strings:', winner_strings)
