@@ -304,14 +304,14 @@ if __name__ == '__main__':
 			print()
 
 			if(p1winrate_eval >= max_eval_winrate):
-				torch.save(p1net.state_dict(), 'output/network_'+'_'+str(i)+'.pth')
+				torch.save(p1net.state_dict(), 'output/network_'+ str(c)+'_'+str(i)+'.pth')
 			eval_win_array.append(p1winrate_eval)
 
-	with open('output/eval_results' + '.csv', 'w') as myfile:
+	with open('output/eval_results' + str(c) + '.csv', 'w') as myfile:
 		wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
 		wr.writerow(eval_win_array)
 
-	with open('output/train_results' + '.csv', 'w') as myfile:
+	with open('output/train_results' + str(c) + '.csv', 'w') as myfile:
 		wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
 		wr.writerow(train_win_array)
 
