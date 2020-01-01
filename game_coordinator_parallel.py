@@ -171,7 +171,6 @@ class ParallelLearningAgent(SACAgent):
 		'''
 		This function then receives the output of the neural net and handles it, returning an action
 		'''
-
 		is_teampreview = ('teamspec' in valid_actions[0])
 		q_tensor = np.exp(q_tensor)
 
@@ -257,8 +256,10 @@ def run_parallel_learning_episode(K, p1s, p2s, network, verbose=True):
 	# start all games
 	for k in range(K):
 		sim[k].stdin.write('>start {"formatid":"gen5ou"}\n')
-		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + teams_data.team3 + '" }\n')
-		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team3 + '" }\n')
+		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + teams_data.team1 + '" }\n')
+		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team1 + '" }\n')
+		#sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '" }\n')
+		#sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name +'" }\n')
 		sim[k].stdin.flush()
 
 	# game messages

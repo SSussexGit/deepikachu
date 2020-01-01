@@ -119,8 +119,8 @@ class DefaultAgent:
         for effect_string in ['encore', 'seed', 'taunt', 'torment', 'twoturnmove', 'confusion', 'sub']:
             self.state['field'][effect_string + player] = False
             #reset relevent timers
-            if (effect_string + player +'time') in self.state['field']:
-                self.state['field'][effect_string + player +'time'] = 0
+            if (effect_string + player +'_time') in self.state['field']:
+                self.state['field'][effect_string + player +'_time'] = 0
         self.state['field']['twoturnmoveoppid'] = EMPTY
         return
 
@@ -341,7 +341,7 @@ class DefaultAgent:
                 pokemon_dict['moves'][move_index]['disabled'] = False
         return 
 
-    def handle_minorstartend(self, player ='opponent'):
+    def handle_minorstartend(self, message, pokemon_name, player ='opponent'):
         #handle minorstart for confusion induced by moves like outrage ending
         if player == 'opponent':
             suffix = 'opp'
@@ -356,23 +356,23 @@ class DefaultAgent:
         effect_string = message['effect']
         if (effect_string == 'confusion'):
             self.state['field']['confusion'+suffix] = on_off_switch
-            self.state['field']['confusion'+suffix+'time'] = 0
         if (effect_string == 'Substitute'):
             self.state['field']['sub'+suffix] = on_off_switch
         if (effect_string == 'Leech Seed'):
             self.state['field']['seed'+suffix] = 0
         if (effect_string == 'Disable'):
             move_string = message['additional_info']
-            pokemon_location = self.get_pokemon_index(pokemon_name, player)
-            for moveid in self.state['opponent']['team']['moves']:
-                if item_data[game_name_to_dex_name(move_string)] == self.state[player]['team']['moves'][moveid]['id']:
-                    self.state[player]['team']['moves'][moveid]['disabled'] = on_off_switch
+            if(move_string != None):
+                pokemon_location = self.get_pokemon_index(pokemon_name, player)
+                for moveid in self.state['opponent']['team'][pokemon_location]['moves']:
+                    if move_data[game_name_to_dex_name(move_string)]['num'] == self.state[player]['team'][pokemon_location]['moves'][moveid]['moveid']:
+                        self.state[player]['team'][pokemon_location]['moves'][moveid]['disabled'] = on_off_switch
         if (effect_string == 'Encore'):
             self.state['field']['encore'+suffix] = on_off_switch
-            self.state['field']['encore'+suffix+'time'] = 0
+            self.state['field']['encore'+suffix+'_time'] = 0
         if (effect_string == 'move: Taunt'):
             self.state['field']['taunt'+suffix] = on_off_switch
-            self.state['field']['taunt'+suffix+'time'] = 0
+            self.state['field']['taunt'+suffix+'_time'] = 0
 
         return
 
@@ -452,13 +452,13 @@ class DefaultAgent:
 
                 if(message['id'] == 'minor_heal'):
                     if('move' in message):
-                        if('item' in message['move']): #if word item is in the message
+                        if(message['move'] != None and 'item' in message['move']): #if word item is in the message
                             item_string = message['move'].split(': ')[-1]#extract the item from the heal message and impute in the item slot
                             self.state['opponent']['team'][pokemon_location]['item'] = item_data[game_name_to_dex_name(item_string)]['num']
 
                 if(message['id'] == 'minor_damage'):
                     if('move' in message):
-                        if('item' in message['move']): #if word item is in the message
+                        if(message['move'] != None and 'item' in message['move']): #if word item is in the message
                             item_string = message['move'].split(': ')[-1]#extract the item from the heal message and impute in the item slot
                             self.state['opponent']['team'][pokemon_location]['item'] = item_data[game_name_to_dex_name(item_string)]['num']
 
@@ -480,7 +480,7 @@ class DefaultAgent:
 
             #handle minorstart for confusion induced by moves like outrage ending
             if(message['id'] in ['minor_start', 'minor_end']):
-                self.handle_minorstartend(player='opponent')
+                self.handle_minorstartend(message, pokemon_name, player='opponent')
                     
                 #haven't done effect:"typechange" because not got the capacity to reset the type once it switches out
 
@@ -537,7 +537,7 @@ class DefaultAgent:
             #handle reveal of items of getting item back
             if(message['id'] == 'minor_item'):
                 pokemon_location = self.get_pokemon_index(pokemon_name)
-                self.state['opponent']['team'][pokemon_location]['item'] = items_data[game_name_to_dex_name(message['item'])]['num']
+                self.state['opponent']['team'][pokemon_location]['item'] = item_data[game_name_to_dex_name(message['item'])]['num']
 
 
             #if the pokemon of interest is active, update the active slot
@@ -590,7 +590,7 @@ class DefaultAgent:
 
             #handle minorstart for confusion induced by moves like outrage ending
             if(message['id'] in ['minor_start', 'minor_end']):
-                self.handle_minorstartend(player='player')
+                self.handle_minorstartend(message, pokemon_name, player='player')
 
             #if the pokemon of interest is active, update the active slot
             pokemon_location = self.get_pokemon_index(pokemon_name, "player")

@@ -62,8 +62,8 @@ if __name__ == '__main__':
 
 
 
-	EPOCHS = 10
-	BATCH_SIZE = 8
+	EPOCHS = 100
+	BATCH_SIZE = 4
 	PARELLEL_PER_BATCH = 32
 	gamma = 0.99
 	lam = 0.95
@@ -263,7 +263,7 @@ if __name__ == '__main__':
 		train_win_array.append(train_win_rate)
 
 		# do an eval epoch
-		if (i % 5 == 4):
+		if (i % 3 == 2):
 
 			# agent plays argmax of q function
 			p1net.eval()
@@ -283,9 +283,9 @@ if __name__ == '__main__':
 					if(winner_strings[k] == p2s[k].name):
 						p2wins_eval += 1
 
+					p1s[k].end_traj()
 					p1s[k].clear_history()
 					p2s[k].clear_history()
-					p1s[k].end_traj()
 					# empty the player buffers without storing in replay
 					p1s[k].empty_buffer()
 
