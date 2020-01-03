@@ -62,8 +62,8 @@ if __name__ == '__main__':
 
 
 
-	EPOCHS = 100
-	BATCH_SIZE = 1
+	EPOCHS = 10
+	BATCH_SIZE = 4
 	PARELLEL_PER_BATCH = 32
 	gamma = 0.99
 	lam = 0.95
@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
 	alpha = 0.05
 	warmup_epochs = 1 # number of epochs playing randomly
-	minibatch_size = 100 # number of examples sampled from experience replay in each update
+	minibatch_size = 1000 # number of examples sampled from experience replay in each update
 	train_update_iters = 100
 
 	# neural nets
@@ -91,7 +91,7 @@ if __name__ == '__main__':
 	v_target_net = copy.deepcopy(p1net)
 	v_target_net.to(DEVICE)
 
-	replay = ExperienceReplay(size=80000, minibatch_size=minibatch_size)
+	replay = ExperienceReplay(size=100000, minibatch_size=minibatch_size)
 
 	# agents
 	p1s = [ParallelLearningAgent(
@@ -100,7 +100,7 @@ if __name__ == '__main__':
 
 
 	# optimizer 
-	lr = 0.001 # lr = 0.0004 # from SAC paper appendix
+	lr = 0.0003 #previously used 0.001
 	weight_decay = 1e-4
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 
@@ -130,7 +130,7 @@ if __name__ == '__main__':
 			for k in range(PARELLEL_PER_BATCH):
 				p1s[k].warmup_epochs = True
 
-		# simulate `BATCH_SIZE` * `PARELLEL_PER_BATCH` games parallelized and store result in replay6
+		# simulate `BATCH_SIZE` * `PARELLEL_PER_BATCH` games parallelized and store result in replay
 		for j in range(BATCH_SIZE):
 
 			winner_strings = run_parallel_learning_episode(PARELLEL_PER_BATCH, p1s, p2s, p1net, verbose=verbose)

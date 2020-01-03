@@ -343,7 +343,22 @@ class SACAgent(LearningAgent):
             np_state = create_2D_state(1) #initialize an empty np state to update
             np_state = self.construct_np_state_from_python_state(np_state, self.state)
             policy_tensor, _, value_tensor = self.network(np_state)
-            #print(policy_tensor)
+
+            #debug
+            print(self.state['player']['active'])
+            for i in range(6):
+                print(self.state['player']['team'][i])
+            print()
+
+            print(self.state['opponent']['active'])
+            for i in range(6):
+                print(self.state['opponent']['team'][i])
+            print()
+            print()
+
+
+            print(policy_tensor)
+            print()
             value = value_tensor[0]  
 
             policy_tensor = torch.exp(policy_tensor)
@@ -505,7 +520,7 @@ if __name__ == '__main__':
 
     #handle command line input whether to train or test
     if(len(sys.argv)>1 and sys.argv[1] == 'test'):
-        p1.network.load_state_dict(torch.load('output/network__0.pth', map_location=torch.device('cpu')))
+        p1.network.load_state_dict(torch.load('output/network_0_2.pth', map_location=torch.device('cpu')))
         p1.network.eval()
         p1.evalmode = True
         for i in range(0, 2):
