@@ -129,8 +129,7 @@ class DefaultAgent:
         for pokemon_dict in message['request_dict']['side']['pokemon']:
             #construct the pokemon state and then add to the team
             #copy the existing pokemon state, update it, add it in
-            pokemon_state = copy.deepcopy(self.state['player']['team'][i])
-
+            pokemon_state = copy.deepcopy(default_pokemon_state)
             #extract pokemon token
             pokemon_name_string = pokemon_dict['ident'].split(': ')[1]
             pokemon_state['pokemon_id']  = pokedex_data[game_name_to_dex_name(pokemon_name_string)]['num']

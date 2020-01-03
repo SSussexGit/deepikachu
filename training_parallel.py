@@ -63,7 +63,7 @@ if __name__ == '__main__':
 
 
 	EPOCHS = 100
-	BATCH_SIZE = 4
+	BATCH_SIZE = 1
 	PARELLEL_PER_BATCH = 32
 	gamma = 0.99
 	lam = 0.95
@@ -163,7 +163,6 @@ if __name__ == '__main__':
 
 				# Random sample from buffer (experience replay)
 				states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = replay.get()
-
 				actions = torch.tensor(actions, dtype=torch.long)
 				advs = torch.tensor(advs, dtype=torch.float)
 				rtgs = torch.tensor(rtgs, dtype=torch.float)
@@ -286,6 +285,7 @@ if __name__ == '__main__':
 					p1s[k].end_traj()
 					p1s[k].clear_history()
 					p2s[k].clear_history()
+
 					# empty the player buffers without storing in replay
 					p1s[k].empty_buffer()
 

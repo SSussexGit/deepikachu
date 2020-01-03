@@ -453,7 +453,7 @@ if __name__ == '__main__':
     python3 training.py mode=train
     '''
     state_embedding_settings = {
-        'pokemon' :     {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_POKEMON},
+        'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
         'type' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_TYPE},
         'move' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE},
         'move_type' :   {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
@@ -470,7 +470,7 @@ if __name__ == '__main__':
 
     d_player = 16
     d_opp = 16
-    d_field = 8
+    d_field = 16
 
     p1 = SACAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, 
         network=DeePikachu0(
@@ -493,7 +493,7 @@ if __name__ == '__main__':
 
     mse_loss = nn.MSELoss(reduction='mean')
 
-    train_update_iters = 100
+    train_update_iters = 50
 
     alpha = 0.005
     warm_up = 3 #number of epochs playing randomly
@@ -505,7 +505,7 @@ if __name__ == '__main__':
 
     #handle command line input whether to train or test
     if(len(sys.argv)>1 and sys.argv[1] == 'test'):
-        p1.network.load_state_dict(torch.load('output/network__3.pth'))
+        p1.network.load_state_dict(torch.load('output/network__0.pth', map_location=torch.device('cpu')))
         p1.network.eval()
         p1.evalmode = True
         for i in range(0, 2):

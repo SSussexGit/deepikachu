@@ -38,8 +38,7 @@ class ExperienceReplay:
 		self.action_replay = np.zeros(self.replay_size, dtype=int)
 		self.adv_replay = np.zeros(self.replay_size, dtype=np.float32)
 		self.rew_replay = np.zeros(self.replay_size, dtype=np.float32)
-		self.rtg_replay = np.zeros(
-			self.replay_size, dtype=np.float32)  # the rewards-to-go
+		self.rtg_replay = np.zeros(self.replay_size, dtype=np.float32)  # the rewards-to-go
 		# save in np because we recompute value a bunch anyway
 		self.val_replay = np.zeros(self.replay_size, dtype=np.float32)
 		self.logp_replay = np.zeros(self.replay_size, dtype=np.float32)  # logp value
@@ -76,6 +75,8 @@ class ExperienceReplay:
 		for action_index in range(ACTION_SPACE_SIZE):
 			if(valid_actions[action_index] == 1):
 				self.valid_actions_replay[self.ptr, action_index] = 1
+			else:
+				self.valid_actions_replay[self.ptr, action_index] = 0
 
 		self.ptr += 1
 		if(self.ptr == self.replay_size):
@@ -173,7 +174,7 @@ class ParallelLearningAgent(SACAgent):
 		'''
 		is_teampreview = ('teamspec' in valid_actions[0])
 		q_tensor = np.exp(q_tensor)
-
+		print(self.state)
 		if(self.warmup):
 			action = random.choice(valid_actions)
 			logp = np.log(1/min(1, len(valid_actions)))
@@ -256,8 +257,8 @@ def run_parallel_learning_episode(K, p1s, p2s, network, verbose=True):
 	# start all games
 	for k in range(K):
 		sim[k].stdin.write('>start {"formatid":"gen5ou"}\n')
-		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + teams_data.team1 + '" }\n')
-		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team1 + '" }\n')
+		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + teams_data.team3 + '" }\n')
+		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team3 + '" }\n')
 		#sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '" }\n')
 		#sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name +'" }\n')
 		sim[k].stdin.flush()
