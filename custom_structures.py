@@ -88,7 +88,7 @@ MESSAGE = {
 	'minor_resisted' :            dict(id='minor_resisted', pokemon=None, additional_info=None, additional_info2=None),
 	'minor_immune' :              dict(id='minor_immune', pokemon=None, additional_info=None, additional_info2=None),
 	'minor_item' :                dict(id='minor_item', pokemon=None, item=None, additional_info=None, additional_info2=None, additional_info3=None),
-	'minor_enditem' :             dict(id='minor_enditem', pokemon=None, item=None, additional_info=None, additional_info2=None),
+	'minor_enditem' :             dict(id='minor_enditem', pokemon=None, item=None, additional_info=None, additional_info2=None, additional_info3=None),
 	'minor_ability' :             dict(id='minor_ability', pokemon=None, ability=None, additional_info=None, additional_info2=None),
 	'minor_endability' :          dict(id='minor_endability', pokemon=None, additional_info=None, additional_info2=None),
 	'minor_transform' :           dict(id='minor_transform', pokemon=None, species=None, additional_info=None, additional_info2=None),
