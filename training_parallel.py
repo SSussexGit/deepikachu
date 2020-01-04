@@ -62,17 +62,17 @@ if __name__ == '__main__':
 
 
 
-	EPOCHS = 10
-	BATCH_SIZE = 4
+	EPOCHS = 20
+	BATCH_SIZE = 8
 	PARELLEL_PER_BATCH = 32
 	gamma = 0.99
 	lam = 0.95
 	verbose = True
 
-	alpha = 0.05
+	alpha = 0.005
 	warmup_epochs = 1 # number of epochs playing randomly
-	minibatch_size = 1000 # number of examples sampled from experience replay in each update
-	train_update_iters = 100
+	minibatch_size = 100 # number of examples sampled from experience replay in each update
+	train_update_iters = 50
 
 	# neural nets
 	d_player = 16
@@ -100,7 +100,7 @@ if __name__ == '__main__':
 
 
 	# optimizer 
-	lr = 0.0003 #previously used 0.001
+	lr = 0.001 #previously used 0.001
 	weight_decay = 1e-4
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 
@@ -262,7 +262,7 @@ if __name__ == '__main__':
 		train_win_array.append(train_win_rate)
 
 		# do an eval epoch
-		if (i % 3 == 2):
+		if (i % 1 == 0):
 
 			# agent plays argmax of q function
 			p1net.eval()

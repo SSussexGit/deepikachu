@@ -360,6 +360,8 @@ class SACAgent(LearningAgent):
             print(policy_tensor)
             print()
             value = value_tensor[0]  
+            print(value_tensor)
+            print()
 
             policy_tensor = torch.exp(policy_tensor)
             
@@ -520,7 +522,7 @@ if __name__ == '__main__':
 
     #handle command line input whether to train or test
     if(len(sys.argv)>1 and sys.argv[1] == 'test'):
-        p1.network.load_state_dict(torch.load('output/network_0_2.pth', map_location=torch.device('cpu')))
+        p1.network.load_state_dict(torch.load('output2/network_1_6.pth', map_location=torch.device('cpu')))
         p1.network.eval()
         p1.evalmode = True
         for i in range(0, 2):
