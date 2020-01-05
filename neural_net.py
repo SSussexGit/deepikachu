@@ -9,6 +9,7 @@ from pprint import pprint
 import math
 import state
 import time
+import json
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -216,7 +217,7 @@ class State(torch.nn.Module):
 # style and implementations inspired by https://nlp.seas.harvard.edu/2018/04/03/attention.html 
 
 class MultiHeadedAttention(nn.Module):
-    def __init__(self, h, d_model, dropout=0.1):
+    def __init__(self, h, d_model, dropout=0.0):
         "Take in model size and number of heads."
         super(MultiHeadedAttention, self).__init__()
         assert d_model % h == 0
@@ -268,7 +269,7 @@ class MultiHeadedAttention(nn.Module):
 
 class FeedForward0(nn.Module):
     '''Simple FeedForward Net'''
-    def __init__(self, d_in, d_ff, d_out, dropout=0.1):
+    def __init__(self, d_in, d_ff, d_out, dropout=0.0):
         super(FeedForward0, self).__init__()
         self.w_1 = nn.Linear(d_in, d_ff)
         self.w_2 = nn.Linear(d_ff, d_out)
@@ -279,12 +280,12 @@ class FeedForward0(nn.Module):
 
 class ResidualFeedForward0(nn.Module):
     '''Residual connection and layer norm'''
-    def __init__(self, d_model, d_ff, dropout=0.1):
+    def __init__(self, d_model, d_ff, dropout=0.0):
         super(ResidualFeedForward0, self).__init__()
         self.size = d_model
         self.norm = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
-        self.sublayer = FeedForward0(d_model, d_ff, d_model, dropout=0.1)
+        self.sublayer = FeedForward0(d_model, d_ff, d_model, dropout=dropout)
 
     def forward(self, x):
         "Apply residual connection to any sublayer with the _same size_."
@@ -296,7 +297,7 @@ class ResidualSelfAttention0(nn.Module):
     Permutation EQUIvariant
     '''
 
-    def __init__(self, heads, d_model, dropout=0.1):
+    def __init__(self, heads, d_model, dropout=0.0):
         super(ResidualSelfAttention0, self).__init__()
         self.size = d_model
         self.norm = nn.LayerNorm(d_model)
@@ -332,7 +333,7 @@ class FieldRepresentation0(nn.Module):
     '''
     `field/` 
     '''
-    def __init__(self, d_out, s, dropout=0.1):
+    def __init__(self, d_out, s, dropout=0.0):
         super(FieldRepresentation0, self).__init__()
 
         
@@ -420,7 +421,7 @@ class MoveRepresentation0(nn.Module):
     '''
     Creates representation of `move_state` 
     '''
-    def __init__(self, d_out, s, dropout=0.1):
+    def __init__(self, d_out, s, dropout=0.0):
         super(MoveRepresentation0, self).__init__()
         
         d_move = s['move']['embed_dim']
@@ -435,7 +436,7 @@ class MoveRepresentation0(nn.Module):
         self.cat_dim = 3 * d_out + 2
 
         self.final = nn.Sequential(
-            FeedForward0(self.cat_dim, self.cat_dim, d_out),
+            FeedForward0(self.cat_dim, self.cat_dim, d_out, dropout=dropout),
             ResidualFeedForward0(d_out, d_out, dropout=dropout),
             ResidualFeedForward0(d_out, d_out, dropout=dropout),
         )
@@ -462,7 +463,7 @@ class PokemonRepresentation0(nn.Module):
     '''
     Creates representation of `pokemon_state` 
     '''
-    def __init__(self, d_out, s, dropout=0.1, attention=False):
+    def __init__(self, d_out, s, dropout=0.0, attention=False):
         super(PokemonRepresentation0, self).__init__()
 
         d_pokemon = s['pokemon']['embed_dim']
@@ -479,17 +480,17 @@ class PokemonRepresentation0(nn.Module):
         self.cat_dim += 7 # boosts
 
         # shared move representation learned for each move (permutation EQUIvariance)  
-        self.move_embed = MoveRepresentation0(d_out, s)
+        self.move_embed = MoveRepresentation0(d_out, s, dropout=dropout)
         self.move_relate = ResidualSelfAttention0(
             heads=4, d_model=d_out, dropout=dropout) if attention else nn.Identity()
 
         # relationship deep set function (permutation INvariance)      
         self.move_DS = DeepSet0(
-            FeedForward0(d_out, d_out, d_out), # phi
-            FeedForward0(d_out, d_out, d_out)) # rho
+            FeedForward0(d_out, d_out, d_out, dropout=dropout),  # phi
+            FeedForward0(d_out, d_out, d_out, dropout=dropout))  # rho
         
         self.final = nn.Sequential(
-            FeedForward0(self.cat_dim, self.cat_dim, d_out),
+            FeedForward0(self.cat_dim, self.cat_dim, d_out, dropout=dropout),
             ResidualFeedForward0(d_out, d_out, dropout=dropout),
             ResidualFeedForward0(d_out, d_out, dropout=dropout),
         )
@@ -502,6 +503,14 @@ class PokemonRepresentation0(nn.Module):
         
         # order equivariant move representations
         moves = torch.stack([self.move_embed(x['moves'][i]) for i in range(4)], dim=1) # bs, moves, d
+        
+        # DEBUG
+        # print('input')
+        # for i in range(4):
+        #     pprint(x['moves'][i])
+        # print('\n output')
+        # pprint(moves)
+
         
         moves_equivariant = self.move_relate(moves)
         
@@ -543,7 +552,7 @@ class PlayerRepresentation0(nn.Module):
     '''
     `player`/  and `opponent/` 
     '''
-    def __init__(self, d_out, s, dropout=0.1, attention=False):
+    def __init__(self, d_out, s, dropout=0.0, attention=False):
         super(PlayerRepresentation0, self).__init__()
 
         # pokemon representations (shared/permutation equivariant for team pokemon)
@@ -554,12 +563,12 @@ class PlayerRepresentation0(nn.Module):
 
         # team pokemon relationship deep set function (permutation INvariance)      
         self.team_DS = DeepSet0(
-            FeedForward0(d_out, d_out, d_out), # phi
-            FeedForward0(d_out, d_out, d_out)) # rho
+            FeedForward0(d_out, d_out, d_out, dropout=dropout), # phi
+            FeedForward0(d_out, d_out, d_out, dropout=dropout))  # rho
 
         # final 
         self.final = nn.Sequential(
-            FeedForward0(2 * d_out, 2 * d_out, d_out),
+            FeedForward0(2 * d_out, 2 * d_out, d_out, dropout=dropout),
             ResidualFeedForward0(d_out, d_out, dropout=dropout),
             # ResidualFeedForward0(d_out, d_out, dropout=dropout),
         )
@@ -584,7 +593,6 @@ class PlayerRepresentation0(nn.Module):
 
         # active pokemon representation
         # (invariant, equivariant)
-
         active_pokemon, moves_equivariant = self.active_pokemon(x['active'], active_boosts)
 
         # team pokemon representation (equivariant move reps are discarded for individual pokemon reps)
@@ -608,7 +616,7 @@ Final net
 
 class DeePikachu0(nn.Module):
     '''Value and Policy Net'''
-    def __init__(self, state_embedding_settings, d_player=128, d_opp=64, d_field=32, dropout=0.1, attention=False):
+    def __init__(self, state_embedding_settings, d_player=128, d_opp=64, d_field=32, dropout=0.0, attention=False):
         super(DeePikachu0, self).__init__()
 
         self.d_player = d_player
@@ -621,11 +629,11 @@ class DeePikachu0(nn.Module):
         self.state_embedding = State(state_embedding_settings)
 
         # major hidden state 
-        self.player = PlayerRepresentation0(d_out=d_player, s=state_embedding_settings, attention=attention)
+        self.player = PlayerRepresentation0(d_out=d_player, s=state_embedding_settings, attention=attention, dropout=dropout)
 
-        self.opponent = PlayerRepresentation0(d_out=d_opp, s=state_embedding_settings, attention=attention)
+        self.opponent = PlayerRepresentation0(d_out=d_opp, s=state_embedding_settings, attention=attention, dropout=dropout)
 
-        self.field = FieldRepresentation0(d_out=d_field, s=state_embedding_settings)
+        self.field = FieldRepresentation0(d_out=d_field, s=state_embedding_settings, dropout=dropout)
 
         # value function
         self.value_function = FeedForward0(d_hidden, d_hidden, 1, dropout=dropout)
@@ -652,6 +660,12 @@ class DeePikachu0(nn.Module):
     def forward(self, x):
         
         state = copy.deepcopy(x) # embedding is put inplace
+
+        # # DEBUG
+        # print('---- STATE')
+        # for j in range(4):
+        #     pprint(state['player']['active']['moves'][j])
+
         state = self.state_embedding(state)
 
         # player 

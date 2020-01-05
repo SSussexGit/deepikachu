@@ -8,7 +8,7 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
-import pprint
+from pprint import pprint
 import copy
 import teams_data
 import csv
@@ -248,7 +248,7 @@ def recurse_cat_state(empty_state, list_of_states):
 	return empty_state
 
 
-def run_parallel_learning_episode(K, p1s, p2s, network, verbose=True):
+def run_parallel_learning_episode(K, p1s, p2s, network, teams=None, verbose=True):
 	'''
 	takes in 2 agents and plays K games between them in parallel (one forward pass of network)
 	Assumes p1s are ParallelLearningAgent
@@ -268,8 +268,8 @@ def run_parallel_learning_episode(K, p1s, p2s, network, verbose=True):
 	# start all games
 	for k in range(K):
 		sim[k].stdin.write('>start {"formatid":"gen5ou"}\n')
-		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + teams_data.team1 + '" }\n')
-		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + teams_data.team1 + '" }\n')
+		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + (teams if teams else teams_data.team1) + '" }\n')
+		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + (teams if teams else teams_data.team1) + '" }\n')
 		#sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '" }\n')
 		#sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name +'" }\n')
 		sim[k].stdin.flush()
@@ -308,6 +308,13 @@ def run_parallel_learning_episode(K, p1s, p2s, network, verbose=True):
 				new_messages[k] += new
 				message_ids[k] = retrieve_message_ids_set(sim[k], new)
 				games[k] += new
+				
+				# # DEBUG
+				# for m in new:
+				# 	if not m.message['id'] == 'request':
+				# 		print(m.original_str)
+				# 	else:
+				# 		print('|request| ', m.message['request_dict'].keys())
 
 		# check if game is over
 		for k in range(K):
@@ -385,6 +392,11 @@ def run_parallel_learning_episode(K, p1s, p2s, network, verbose=True):
 				np_states.append(st)
 				valid_actions.append(va)
 
+			# DEBUG
+			# print('---- BEFORE NN')
+			# for j in range(4):
+			# 	pprint.pprint(np_states[0]['player']['active']['moves'][j])
+				
 			# batch state processing
 			with torch.no_grad():
 				np_state_cat = recurse_cat_state(create_2D_state(len(running)), np_states)

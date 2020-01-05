@@ -27,9 +27,8 @@ from game_coordinator import *
 from game_coordinator_parallel import *
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-VERBOSE = True
 MAX_GAME_LEN = 400  # max length is 200 but if you u-turn every turn you move twice per turn
-tt_prnt = 20
+tt_prnt = 10
 
 if __name__ == '__main__':
 	'''
@@ -45,10 +44,10 @@ if __name__ == '__main__':
 	np.random.seed(c)
 
 	state_embedding_settings = {
-		'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
-		'type' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_TYPE},
-		'move' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE},
-		'move_type' :   {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
+		'pokemon' :     {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_POKEMON},
+		'type' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_TYPE},
+		'move' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE},
+		'move_type' :   {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
 		'ability' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ABILITY},
 		'item' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ITEM},
 		'condition' :   {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_CONDITION},
@@ -63,16 +62,16 @@ if __name__ == '__main__':
 
 
 	EPOCHS = 10
-	BATCH_SIZE = 4
-	PARELLEL_PER_BATCH = 32
+	BATCH_SIZE = 2
+	PARELLEL_PER_BATCH = 16
 	gamma = 0.99
 	lam = 0.95
 	verbose = True
 
 	alpha = 0.05
-	warmup_epochs = 1 # number of epochs playing randomly
-	minibatch_size = 1000 # number of examples sampled from experience replay in each update
-	train_update_iters = 100
+	warmup_epochs = 0 # number of epochs playing randomly
+	minibatch_size = 100 # number of examples sampled from experience replay in each update
+	train_update_iters = 50
 
 	# neural nets
 	d_player = 16
@@ -95,9 +94,10 @@ if __name__ == '__main__':
 
 	# agents
 	p1s = [ParallelLearningAgent(
-		id='p1', name='Red', size=20000, gamma=gamma, lam=lam) for _ in range(PARELLEL_PER_BATCH)]
+		id='p1', name='Red', size=2 * MAX_GAME_LEN, gamma=gamma, lam=lam) for _ in range(PARELLEL_PER_BATCH)]
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
+	player_teams = teams_data.team1
 
 	# optimizer 
 	lr = 0.0003 #previously used 0.001
@@ -133,7 +133,8 @@ if __name__ == '__main__':
 		# simulate `BATCH_SIZE` * `PARELLEL_PER_BATCH` games parallelized and store result in replay
 		for j in range(BATCH_SIZE):
 
-			winner_strings = run_parallel_learning_episode(PARELLEL_PER_BATCH, p1s, p2s, p1net, verbose=verbose)
+			winner_strings = run_parallel_learning_episode(
+				PARELLEL_PER_BATCH, p1s, p2s, p1net, teams=player_teams, verbose=verbose)
 			
 			for k in range(PARELLEL_PER_BATCH):
 				if(winner_strings[k] == p1s[k].name):
@@ -148,7 +149,7 @@ if __name__ == '__main__':
 				# for player in every game, empty the buffers into experience replay
 				states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = p1s[k].spit()
 				replay.swallow(states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones)
-								
+				
 				p1s[k].empty_buffer()
 
 		# perform updates on neural net
