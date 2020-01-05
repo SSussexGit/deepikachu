@@ -30,6 +30,8 @@ DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 MAX_GAME_LEN = 400  # max length is 200 but if you u-turn every turn you move twice per turn
 tt_prnt = 10
 
+print(DEVICE)
+
 if __name__ == '__main__':
 	'''
 	Usage:  ['tester.py', i] for parallel compute
@@ -61,7 +63,7 @@ if __name__ == '__main__':
 
 
 
-	EPOCHS = 20
+	EPOCHS = 50
 	BATCH_SIZE = 8
 	PARELLEL_PER_BATCH = 32
 	gamma = 0.99
@@ -69,9 +71,9 @@ if __name__ == '__main__':
 	verbose = True
 
 	alpha = 0.05
-	warmup_epochs = 0 # number of epochs playing randomly
-	minibatch_size = 100 # number of examples sampled from experience replay in each update
-	train_update_iters = 50
+	warmup_epochs = 2 # number of epochs playing randomly
+	minibatch_size = 500 # number of examples sampled from experience replay in each update
+	train_update_iters = 100
 
 	# neural nets
 	d_player = 16
@@ -100,7 +102,7 @@ if __name__ == '__main__':
 	player_teams = teams_data.team1
 
 	# optimizer 
-	lr = 0.001 #previously used 0.001
+	lr = 0.0004 #previously used 0.001
 	weight_decay = 1e-4
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 
@@ -263,7 +265,7 @@ if __name__ == '__main__':
 		train_win_array.append(train_win_rate)
 
 		# do an eval epoch
-		if (i % 1 == 0):
+		if (i % 5 == 4):
 
 			# agent plays argmax of q function
 			p1net.eval()

@@ -6,11 +6,13 @@ This file gives instructions for running on the cluster.
 4) in the same folder as the training code: mkdir output
 5) to run a batch of 5 training episodes on gpu run:
 
-for i in `seq 1 5`; do bsub -W 12:00 -n 16 -R "rusage[mem=16000, ngpus_excl_p=1]"  "python training_parallel.py $i"; done
+for i in `seq 1 5`; do bsub -W 12:00 -n 4 -R "rusage[mem=16000, ngpus_excl_p=1]"  "python training_parallel.py $i"; done
 
 Where "12:00" means the job takes 12 hours. "-n 16" means use 16 nodes. "rusage[mem=16000,ngpus_excl_p=1]" means use 16000 mb ram on cpus and use a single GPU (the max for students). Run a miniaturized job first just to make sure everything working. 
 
-6) To download the results run (on your machine): scp ssussex@login.leonhard.ethz.ch:directory/pokemon-showdown/output .
+6) To download the results run (on your machine): 
+
+scp -r llorch@login.leonhard.ethz.ch:~/class/deepikachu/output .
 
 This information above specifically is for running on GPU. To run on CPU, do not do step 3 but instead load the Conda environment specified in "spec-file.txt". Then don't include the ",ngpus_excl_p=1" part when running. 
 
