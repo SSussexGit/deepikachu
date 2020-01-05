@@ -1,12 +1,12 @@
 This file gives instructions for running on the cluster. 
 
-1) login to leonhard by ssh: ssh [username]@login.leonhard.eth
+1) login to leonhard by ssh: ssh [username]@login.leonhard.ethz.ch
 2) make a folder and git pull this directory. Install Miniconda. Install nodejs using conda: conda install -c conda-forge nodejs. 
 3) in terminal run: module load python_gpu/3.7.1
 4) in the same folder as the training code: mkdir output
 5) to run a batch of 5 training episodes on gpu run:
 
-for i in `seq 1 5`; do bsub -W 12:00 -n 16 -R "rusage[mem=16000, ngpus_excl_p=1]"  "python game_coordinator_parallel.py $i"; done
+for i in `seq 1 5`; do bsub -W 12:00 -n 16 -R "rusage[mem=16000, ngpus_excl_p=1]"  "python training_parallel $i"; done
 
 Where "12:00" means the job takes 12 hours. "-n 16" means use 16 nodes. "rusage[mem=16000,ngpus_excl_p=1]" means use 16000 mb ram on cpus and use a single GPU (the max for students). Run a miniaturized job first just to make sure everything working. 
 
