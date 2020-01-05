@@ -522,7 +522,7 @@ if __name__ == '__main__':
 
     #handle command line input whether to train or test
     if(len(sys.argv)>1 and sys.argv[1] == 'test'):
-        p1.network.load_state_dict(torch.load('output2/network_1_6.pth', map_location=torch.device('cpu')))
+        p1.network.load_state_dict(torch.load('output3/network_1_15.pth', map_location=torch.device('cpu')))
         p1.network.eval()
         p1.evalmode = True
         for i in range(0, 2):
