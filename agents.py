@@ -446,7 +446,8 @@ class DefaultAgent:
                 if(len(hp_condition) == 2):
                     if(hp_condition[1] != 'fnt'):
                         self.state['opponent']['team'][pokemon_location]['condition'] = status_data[game_name_to_dex_name(hp_condition[1])]['num']
-                    self.state['opponent']['team'][pokemon_location]['alive'] = False
+                    else:
+                        self.state['opponent']['team'][pokemon_location]['alive'] = False
                 else: 
                     self.state['opponent']['team'][pokemon_location]['condition'] = EMPTY
 
