@@ -30,6 +30,8 @@ DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 MAX_GAME_LEN = 400  # max length is 200 but if you u-turn every turn you move twice per turn
 tt_prnt = 10
 
+print(DEVICE)
+
 if __name__ == '__main__':
 	'''
 	Usage:  ['tester.py', i] for parallel compute
@@ -100,7 +102,7 @@ if __name__ == '__main__':
 	player_teams = teams_data.team1
 
 	# optimizer 
-	lr = 0.0003 #previously used 0.001
+	lr = 0.0004 #previously used 0.001
 	weight_decay = 1e-4
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 
@@ -263,7 +265,7 @@ if __name__ == '__main__':
 		train_win_array.append(train_win_rate)
 
 		# do an eval epoch
-		if (i % 1 == 0):
+		if (i % 5 == 4):
 
 			# agent plays argmax of q function
 			p1net.eval()
