@@ -86,16 +86,15 @@ class ExperienceReplay:
 		return
 
 	def recurse_store_state(self, state_buffer, state, index):
-	    '''
-	    stores a state in buffer recursively
-	    '''
-	    for field in state:
-	        if (isinstance(state[field], dict)):
-	            state_buffer[field] = self.recurse_store_state(
-	            	state_buffer[field], state[field], index)
-	        else:
-	            state_buffer[field][index] = state[field]
-	    return state_buffer
+		'''
+		stores a state in buffer recursively
+		'''
+		for field in state:
+			if (isinstance(state[field], dict)):
+				state_buffer[field] = self.recurse_store_state(state_buffer[field], state[field], index)
+			else:
+				state_buffer[field][index] = state[field]
+		return state_buffer
 
 	def recurse_unfold_state(self, state_holder, states, index):
 		'''

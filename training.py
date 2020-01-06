@@ -168,6 +168,10 @@ class LearningAgent(VPGBuffer, DefaultAgent):
             if (isinstance(state[field], dict)):
                 state_buffer[field] = self.recurse_store_state(state_buffer[field], state[field], index)
             else:
+                if(field not in state_buffer):
+                    print(state)
+                    print(field)
+                    ValueError("Field issue")
                 state_buffer[field][index] = state[field]
         return state_buffer
 
@@ -611,7 +615,7 @@ if __name__ == '__main__':
                         # 1
                         valid_q_A = torch.mul(valid_actions, torch.exp((q_tensor_A_fixed-torch.mean(q_tensor_A_fixed, dim=1, keepdim=True)) / alpha))
                         valid_policy_A = valid_q_A / valid_q_A.sum(dim=1, keepdim=True)
-                        
+
                         actions_tilde = torch.distributions.Categorical(probs=valid_policy_A).sample()
 
                         v_target_A = q_tensor_A_fixed[torch.arange(total_traj_len), actions_tilde] \

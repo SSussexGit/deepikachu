@@ -133,9 +133,9 @@ class DefaultAgent:
             #extract pokemon token
             pokemon_name_string = pokemon_dict['ident'].split(': ')[1]
             pokemon_state['pokemon_id']  = pokedex_data[game_name_to_dex_name(pokemon_name_string)]['num']
-
+            
             #extract move information
-            j = 0
+            j = 0 
             for move_string in pokemon_dict['moves']:
                 #there may be other special cases in addition to "return102"
                 if(move_string.startswith("return")):
@@ -386,13 +386,12 @@ class DefaultAgent:
         #extract the player id from the player part
         player_id = player_pokemon[0][:2]
         pokemon_name = player_pokemon[1]
-
+        
         #update from a 'poke' message if we have teampreview
         #only need to update some things if it effects the opponent
         if(player_id != self.id):
             #assume it always updates the active pokemon
             #find the active pokemon and update it
-          
             if(message['id'] == 'faint'):
                 for pokemon_dict_index in self.state['opponent']['team']:
                     pokemon_dict = copy.deepcopy(self.state['opponent']['team'][pokemon_dict_index])
@@ -403,7 +402,7 @@ class DefaultAgent:
             #dealing with switching
             if message['id'] == 'switch' or message['id'] == "drag":
 
-
+                
                 #first check if the pokemon is in the state yet
                 #retain a list of where Nones are and a value for where the pokemon is
                 pokemon_location = None
@@ -510,7 +509,7 @@ class DefaultAgent:
                 if(message['id'] == 'minor_unboost'):
                     self.state['opponent']['boosts']['opp'+stat_string] = max(self.state['opponent']['boosts']['opp'+stat_string] - amount_int, -6)
                 if(message['id'] == 'minor_setboost'):
-                    self.state['opponent']['boosts'][stat_string] = amount_int
+                    self.state['opponent']['boosts']['opp'+stat_string] = amount_int
             if(message['id'] in ['minor_clearboost', 'minor_clearnegativeboost', 'minor_clearpositiveboost', 'minor_invertboost', 'minor_copyboost']):
                 if(message['id'] == 'minor_clearboost'):
                     for stat_string in self.state['player']['boosts']:
@@ -548,7 +547,6 @@ class DefaultAgent:
 
         else:
             #for yourself
-                
             #reset some things at switch-in
             #dealing with switching
             if message['id'] == 'switch' or message['id'] == "drag":
@@ -628,7 +626,7 @@ class DefaultAgent:
                     if(self.state['field'][split_underscore[0]] == False):
                         self.state['field'][field_element] = 0
                     else:
-                        self.state['field'][field_element] += 1
+                        self.state['field'][field_element] += 1       
 
     def field_effect_update(self, message):
         if(message['id'] == 'minor_weather'):

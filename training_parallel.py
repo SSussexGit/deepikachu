@@ -72,7 +72,7 @@ if __name__ == '__main__':
 
 	alpha = 0.05
 	warmup_epochs = 5 # number of epochs playing randomly
-	train_update_iters = 100
+	train_update_iters = 10
 
 	# neural nets
 	d_player = 64
