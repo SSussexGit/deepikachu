@@ -46,13 +46,13 @@ if __name__ == '__main__':
 	np.random.seed(c)
 
 	state_embedding_settings = {
-		'pokemon' :     {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_POKEMON},
-		'type' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_TYPE},
-		'move' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE},
-		'move_type' :   {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
+		'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
+		'type' :        {'embed_dim' : 16, 'dict_size' : neural_net.MAX_TOK_TYPE},
+		'move' :        {'embed_dim' : 16, 'dict_size' : neural_net.MAX_TOK_MOVE},
+		'move_type' :   {'embed_dim' : 16, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
 		'ability' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ABILITY},
 		'item' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ITEM},
-		'condition' :   {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_CONDITION},
+		'condition' :   {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_CONDITION},
 		'weather' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_WEATHER},
 		'alive' :       {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ALIVE},
 		'disabled' :    {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_DISABLED},
@@ -63,22 +63,21 @@ if __name__ == '__main__':
 
 
 
-	EPOCHS = 30
-	BATCH_SIZE = 8
-	PARELLEL_PER_BATCH = 32
+	EPOCHS = 100
+	BATCH_SIZE = 16
+	PARELLEL_PER_BATCH = 64
 	gamma = 0.99
 	lam = 0.95
 	verbose = True
 
 	alpha = 0.05
-	warmup_epochs = 2 # number of epochs playing randomly
-	minibatch_size = 500 # number of examples sampled from experience replay in each update
+	warmup_epochs = 5 # number of epochs playing randomly
 	train_update_iters = 100
 
 	# neural nets
-	d_player = 16
-	d_opp = 16
-	d_field = 16
+	d_player = 64
+	d_opp = 64
+	d_field = 32
 
 	p1net = DeePikachu0(
 		state_embedding_settings,
@@ -92,17 +91,23 @@ if __name__ == '__main__':
 	v_target_net = copy.deepcopy(p1net)
 	v_target_net.to(DEVICE)
 
-	replay = ExperienceReplay(size=1000000, minibatch_size=minibatch_size)
+	# experience replay
+	replay_size = 1e7
+	minibatch_size = 1000  # number of examples sampled from experience replay in each update
+	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
 	# agents
 	p1s = [ParallelLearningAgent(
-		id='p1', name='Red', size=2 * MAX_GAME_LEN, gamma=gamma, lam=lam, alpha=alpha) for _ in range(PARELLEL_PER_BATCH)]
+		id='p1', name='Red', size=MAX_GAME_LEN + 1, gamma=gamma, lam=lam, alpha=alpha) for _ in range(PARELLEL_PER_BATCH)]
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
-	player_teams = teams_data.team1
+	# game mode
+	formatid = 'gen5randombattle' #'gen5ou'
+	player_teams = None #teams_data.team1
+	
 
 	# optimizer 
-	lr = 0.0004 #previously used 0.001
+	lr = 0.0001 #previously used 0.001, 0.0004 (SAC paper recommendations)
 	weight_decay = 1e-4
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 
@@ -114,7 +119,7 @@ if __name__ == '__main__':
 	train_win_array = []
 	eval_win_array = []
 
-	print(f'\nEpochs: {EPOCHS}\nGames per batch: {BATCH_SIZE * PARELLEL_PER_BATCH}\n'
+	print(f'\nEpochs: {EPOCHS}\nGames per epoch: {BATCH_SIZE * PARELLEL_PER_BATCH}\n'
 		  f'(batch size: {BATCH_SIZE}; in parallel: {PARELLEL_PER_BATCH})\n')
 
 	# simulate `EPOCHS` epochs
@@ -136,7 +141,7 @@ if __name__ == '__main__':
 		for j in range(BATCH_SIZE):
 
 			winner_strings = run_parallel_learning_episode(
-				PARELLEL_PER_BATCH, p1s, p2s, p1net, teams=player_teams, verbose=verbose)
+				PARELLEL_PER_BATCH, p1s, p2s, p1net, formatid=formatid, team=player_teams, verbose=verbose)
 			
 			for k in range(PARELLEL_PER_BATCH):
 				if(winner_strings[k] == p1s[k].name):

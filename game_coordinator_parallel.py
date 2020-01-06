@@ -248,7 +248,7 @@ def recurse_cat_state(empty_state, list_of_states):
 	return empty_state
 
 
-def run_parallel_learning_episode(K, p1s, p2s, network, teams=None, verbose=True):
+def run_parallel_learning_episode(K, p1s, p2s, network, formatid='gen5ou', team=teams_data.team1, verbose=True):
 	'''
 	takes in 2 agents and plays K games between them in parallel (one forward pass of network)
 	Assumes p1s are ParallelLearningAgent
@@ -267,11 +267,15 @@ def run_parallel_learning_episode(K, p1s, p2s, network, teams=None, verbose=True
 
 	# start all games
 	for k in range(K):
-		sim[k].stdin.write('>start {"formatid":"gen5ou"}\n')
-		sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + (teams if teams else teams_data.team1) + '" }\n')
-		sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + (teams if teams else teams_data.team1) + '" }\n')
-		#sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '" }\n')
-		#sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name +'" }\n')
+		sim[k].stdin.write('>start {"formatid":"' + (formatid) + '"}\n')
+
+		if 'randombattle' in formatid:
+			sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '" }\n')
+			sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '" }\n')
+		else:
+			sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + (team) + '" }\n')
+			sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + (team) + '" }\n')
+		
 		sim[k].stdin.flush()
 
 	# game messages
