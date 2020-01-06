@@ -92,7 +92,7 @@ if __name__ == '__main__':
 	v_target_net.to(DEVICE)
 
 	# experience replay
-	replay_size = 1e7
+	replay_size = 1e5
 	minibatch_size = 1000  # number of examples sampled from experience replay in each update
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
@@ -102,7 +102,7 @@ if __name__ == '__main__':
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
 	# game mode
-	formatid = 'gen5randombattle' #'gen5ou'
+	formatid = 'gen5ou'  # 'gen5ou' 'gen5randombattle'
 	player_teams = None #teams_data.team1
 	
 
