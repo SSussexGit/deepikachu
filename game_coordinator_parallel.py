@@ -144,10 +144,10 @@ class ExperienceReplay:
 
 class ParallelLearningAgent(SACAgent):
 
-	def __init__(self, id, size, name='Ash', gamma=0.99, lam=0.95):
+	def __init__(self, id, size, name='Ash', gamma=0.99, lam=0.95, alpha=0.05):
 		# force network=None (can still later store neural net in self.network field)
 		super(ParallelLearningAgent, self).__init__(
-			id=id, name=name, size=size, gamma=gamma, lam=lam, network=None)
+			id=id, name=name, size=size, gamma=gamma, lam=lam, network=None, alpha=alpha)
 
 	def process_request_get_state(self, request):
 		'''
@@ -185,7 +185,7 @@ class ParallelLearningAgent(SACAgent):
 		'''
 
 		is_teampreview = ('teamspec' in valid_actions[0])
-		q_tensor = np.exp(q_tensor)
+		q_tensor = np.exp((q_tensor-np.mean(q_tensor)) / self.alpha)
 		if(self.warmup):
 			action = random.choice(valid_actions)
 			logp = np.log(1/min(1, len(valid_actions)))

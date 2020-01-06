@@ -61,7 +61,7 @@ if __name__ == '__main__':
 
 
 
-	EPOCHS = 20
+	EPOCHS = 30
 	BATCH_SIZE = 8
 	PARELLEL_PER_BATCH = 32
 	gamma = 0.99
@@ -69,9 +69,9 @@ if __name__ == '__main__':
 	verbose = True
 
 	alpha = 0.05
-	warmup_epochs = 0 # number of epochs playing randomly
-	minibatch_size = 100 # number of examples sampled from experience replay in each update
-	train_update_iters = 50
+	warmup_epochs = 2 # number of epochs playing randomly
+	minibatch_size = 500 # number of examples sampled from experience replay in each update
+	train_update_iters = 100
 
 	# neural nets
 	d_player = 16
@@ -90,17 +90,17 @@ if __name__ == '__main__':
 	v_target_net = copy.deepcopy(p1net)
 	v_target_net.to(DEVICE)
 
-	replay = ExperienceReplay(size=100000, minibatch_size=minibatch_size)
+	replay = ExperienceReplay(size=1000000, minibatch_size=minibatch_size)
 
 	# agents
 	p1s = [ParallelLearningAgent(
-		id='p1', name='Red', size=2 * MAX_GAME_LEN, gamma=gamma, lam=lam) for _ in range(PARELLEL_PER_BATCH)]
+		id='p1', name='Red', size=2 * MAX_GAME_LEN, gamma=gamma, lam=lam, alpha=alpha) for _ in range(PARELLEL_PER_BATCH)]
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
 	player_teams = teams_data.team1
 
 	# optimizer 
-	lr = 0.001 #previously used 0.001
+	lr = 0.0003 #previously used 0.001
 	weight_decay = 1e-4
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 
@@ -193,7 +193,7 @@ if __name__ == '__main__':
 					
 					# v function regression target (min over both q heads:)
 					# 1
-					valid_q_A = torch.mul(valid_actions, torch.exp(q_tensor_A_fixed))
+					valid_q_A = torch.mul(valid_actions, torch.exp((q_tensor_A_fixed-torch.mean(q_tensor_A_fixed, dim=1, keepdim=True)) / alpha))
 					valid_policy_A = valid_q_A / valid_q_A.sum(dim=1, keepdim=True)
 
 					actions_tilde = torch.distributions.Categorical(probs=valid_policy_A).sample()

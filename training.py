@@ -27,7 +27,7 @@ from neural_net import DeePikachu0
 
 EPOCHS = 100
 MAX_GAME_LEN = 4000 #max length is 200 but if you u-turn every turn you move twice per turn
-BATCH_SIZE = 32 # 8 #100
+BATCH_SIZE = 5 # 8 #100
 ACTION_SPACE_SIZE = 10 #4 moves and 6 switches
 
 def action_to_int(action):
@@ -130,7 +130,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
     '''
     Consists of all VPGbuffer info and a network for selecting moves, along with all agent subclasses
     '''
-    def __init__(self, id, name='Ash', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, network=None):
+    def __init__(self, id, name='Ash', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, network=None, alpha = 0.001):
         self.id = id
         self.name = name
         self.history = []
@@ -158,6 +158,7 @@ class LearningAgent(VPGBuffer, DefaultAgent):
         self.warmup = False
         self.minibatch_size = 100
         self.evalmode = False
+        self.alpha = alpha
 
     def recurse_store_state(self, state_buffer, state, index):
         '''
@@ -362,8 +363,7 @@ class SACAgent(LearningAgent):
             value = value_tensor[0]  
             print(value_tensor)
             print()
-
-            policy_tensor = torch.exp(policy_tensor)
+            policy_tensor = torch.exp((policy_tensor  - torch.mean(policy_tensor))/ self.alpha)
             
             if is_teampreview:
                 for i in np.arange(10):
@@ -377,7 +377,7 @@ class SACAgent(LearningAgent):
 
             policy = policy_tensor.cpu().detach().numpy()[0] 
             policy /= np.sum(policy)
-            #print(policy)
+            print(policy)
             #check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option 
             if is_teampreview:
                 if(self.evalmode):
@@ -470,10 +470,10 @@ if __name__ == '__main__':
     python3 training.py mode=train
     '''
     state_embedding_settings = {
-        'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
-        'type' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_TYPE},
-        'move' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE},
-        'move_type' :   {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
+        'pokemon' :     {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_POKEMON},
+        'type' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_TYPE},
+        'move' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE},
+        'move_type' :   {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
         'ability' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ABILITY},
         'item' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ITEM},
         'condition' :   {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_CONDITION},
@@ -489,6 +489,13 @@ if __name__ == '__main__':
     d_opp = 16
     d_field = 16
 
+    alpha = 0.05
+    warm_up = 3 #number of epochs playing randomly
+    minibatch_size = 100
+    max_winrate = 0
+    win_array = []
+    train_win_array = []
+
     p1 = SACAgent(id='p1', name='Red', size = MAX_GAME_LEN*BATCH_SIZE, gamma=0.99, lam=0.95, 
         network=DeePikachu0(
             state_embedding_settings, 
@@ -496,7 +503,8 @@ if __name__ == '__main__':
             d_opp=d_opp, 
             d_field=d_field, 
             dropout=0.0, 
-            attention=True))
+            attention=True),
+        alpha = alpha)
             
     p2 = RandomAgent(id='p2', name='Blue')
 
@@ -512,20 +520,14 @@ if __name__ == '__main__':
 
     train_update_iters = 50
 
-    alpha = 0.005
-    warm_up = 3 #number of epochs playing randomly
-    minibatch_size = 100
     p1.minibatch_size = minibatch_size
-    max_winrate = 0
-    win_array = []
-    train_win_array = []
 
     #handle command line input whether to train or test
     if(len(sys.argv)>1 and sys.argv[1] == 'test'):
-        p1.network.load_state_dict(torch.load('output3/network_1_15.pth', map_location=torch.device('cpu')))
+        p1.network.load_state_dict(torch.load('output4/network_0_19.pth', map_location=torch.device('cpu')))
         p1.network.eval()
         p1.evalmode = True
-        for i in range(0, 2):
+        for i in range(0, 1):
             winner = game_coordinator.run_learning_episode(p1, p2)
             p1.end_traj()
             p1.clear_history()
@@ -607,9 +609,9 @@ if __name__ == '__main__':
                         
                         # v function regression target (min over both q heads:)
                         # 1
-                        valid_q_A = torch.mul(valid_actions, torch.exp(q_tensor_A_fixed))
+                        valid_q_A = torch.mul(valid_actions, torch.exp((q_tensor_A_fixed-torch.mean(q_tensor_A_fixed, dim=1, keepdim=True)) / alpha))
                         valid_policy_A = valid_q_A / valid_q_A.sum(dim=1, keepdim=True)
-
+                        
                         actions_tilde = torch.distributions.Categorical(probs=valid_policy_A).sample()
 
                         v_target_A = q_tensor_A_fixed[torch.arange(total_traj_len), actions_tilde] \
