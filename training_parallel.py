@@ -46,13 +46,13 @@ if __name__ == '__main__':
 	np.random.seed(c)
 
 	state_embedding_settings = {
-		'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
-		'type' :        {'embed_dim' : 16, 'dict_size' : neural_net.MAX_TOK_TYPE},
-		'move' :        {'embed_dim' : 16, 'dict_size' : neural_net.MAX_TOK_MOVE},
-		'move_type' :   {'embed_dim' : 16, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
+		'pokemon' :     {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_POKEMON},
+		'type' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_TYPE},
+		'move' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE},
+		'move_type' :   {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
 		'ability' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ABILITY},
 		'item' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ITEM},
-		'condition' :   {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_CONDITION},
+		'condition' :   {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_CONDITION},
 		'weather' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_WEATHER},
 		'alive' :       {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ALIVE},
 		'disabled' :    {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_DISABLED},
@@ -65,34 +65,52 @@ if __name__ == '__main__':
 
 	EPOCHS = 100
 	BATCH_SIZE = 16
-	PARELLEL_PER_BATCH = 64
+	PARELLEL_PER_BATCH = 32
 	gamma = 0.99
 	lam = 0.95
 	verbose = True
 
 	alpha = 0.05
-	warmup_epochs = 5 # number of epochs playing randomly
-	train_update_iters = 100
+	warmup_epochs = 2 # number of epochs playing randomly
+	train_update_iters = 50
 
 	# neural nets
 	d_player = 64
 	d_opp = 64
 	d_field = 32
 
-	p1net = DeePikachu0(
+	p1net_V = DeePikachu0(
 		state_embedding_settings,
 		d_player=d_player,
 		d_opp=d_opp,
 		d_field=d_field,
 		dropout=0.0,
 		attention=True)
-	p1net = p1net.to(DEVICE)
+	p1net_V = p1net_V.to(DEVICE)
 
-	v_target_net = copy.deepcopy(p1net)
+	p1net_Q1 = DeePikachu0(
+		state_embedding_settings,
+		d_player=d_player,
+		d_opp=d_opp,
+		d_field=d_field,
+		dropout=0.0,
+		attention=True)
+	p1net_Q1 = p1net_Q1.to(DEVICE)
+
+	p1net_Q2 = DeePikachu0(
+		state_embedding_settings,
+		d_player=d_player,
+		d_opp=d_opp,
+		d_field=d_field,
+		dropout=0.0,
+		attention=True)
+	p1net_Q2 = p1net_Q2.to(DEVICE)
+
+	v_target_net = copy.deepcopy(p1net_V)
 	v_target_net.to(DEVICE)
 
 	# experience replay
-	replay_size = 1e5
+	replay_size = 1e6
 	minibatch_size = 1000  # number of examples sampled from experience replay in each update
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
@@ -103,14 +121,15 @@ if __name__ == '__main__':
 
 	# game mode
 	formatid = 'gen5ou'  # 'gen5ou' 'gen5randombattle'
-	player_teams = None #teams_data.team1
+	player_teams = teams_data.team1 #None #teams_data.team1
 	
 
 	# optimizer 
-	lr = 0.0001 #previously used 0.001, 0.0004 (SAC paper recommendations)
+	lr = 0.0004 #previously used 0.001, 0.0004 (SAC paper recommendations)
 	weight_decay = 1e-4
-	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
-
+	optimizer_V = optim.Adam(p1net_Q1.parameters(), lr=lr, weight_decay=weight_decay)
+	optimizer_Q1 = optim.Adam(p1net_Q2.parameters(), lr=lr, weight_decay=weight_decay)
+	optimizer_Q2 = optim.Adam(p1net_V.parameters(), lr=lr, weight_decay=weight_decay)
 
 	mse_loss = nn.MSELoss(reduction='mean')
 
@@ -124,7 +143,7 @@ if __name__ == '__main__':
 
 	# simulate `EPOCHS` epochs
 	for i in range(EPOCHS):
-		p1net.train()
+		p1net_Q1.train()
 		print(' Epoch {:3d}: '.format(i))
 
 		p1wins, p2wins = 0, 0
@@ -132,16 +151,16 @@ if __name__ == '__main__':
 		# warmup mode
 		if(i >= warmup_epochs):
 			for k in range(PARELLEL_PER_BATCH):
-				p1s[k].warmup_epochs = False
+				p1s[k].warmup = False
 		else:
 			for k in range(PARELLEL_PER_BATCH):
-				p1s[k].warmup_epochs = True
+				p1s[k].warmup = True
 
 		# simulate `BATCH_SIZE` * `PARELLEL_PER_BATCH` games parallelized and store result in replay
 		for j in range(BATCH_SIZE):
 
 			winner_strings = run_parallel_learning_episode(
-				PARELLEL_PER_BATCH, p1s, p2s, p1net, formatid=formatid, team=player_teams, verbose=verbose)
+				PARELLEL_PER_BATCH, p1s, p2s, p1net_Q1, formatid=formatid, team=player_teams, verbose=verbose)
 			
 			for k in range(PARELLEL_PER_BATCH):
 				if(winner_strings[k] == p1s[k].name):
@@ -190,9 +209,10 @@ if __name__ == '__main__':
 					v_target_net.train()
 
 					# q function for s, a pairs
-					p1net.eval()
-					q_tensor_A_fixed, q_tensor_B_fixed, _ = p1net(states)
-					p1net.train()
+					p1net_Q1.eval()
+					q_tensor_A_fixed, _, _ = p1net_Q1(states)
+					_, q_tensor_B_fixed, _ = p1net_Q2(states)
+					p1net_Q1.train()
 
 
 					# q function regression target
@@ -216,40 +236,40 @@ if __name__ == '__main__':
 					v_target = torch.min(torch.stack([v_target_A, v_target_B], dim=1), dim=1)[0]
 
 				# run updates on the networks
-				p1net.train()
+				p1net_Q1.train()
 
 				# Q step A
-				optimizer.zero_grad()
-				q_tensor_A, _, _ = p1net(states)
+				optimizer_Q1.zero_grad()
+				q_tensor_A, _, _ = p1net_Q1(states)
 				q_action_taken_A = q_tensor_A[torch.arange(total_traj_len), actions]
 
 				loss = mse_loss(q_action_taken_A, q_target)
 				loss.backward()
-				optimizer.step()  
+				optimizer_Q1.step()  
 
 				if (tt % tt_prnt == 0):
 					print('Q step A: ', loss.detach().item(), end='\t')
 
 				# Q step B
-				optimizer.zero_grad()
-				_, q_tensor_B, _ = p1net(states)
+				optimizer_Q2.zero_grad()
+				_, q_tensor_B, _ = p1net_Q2(states)
 				q_action_taken_B = q_tensor_B[torch.arange(
 					total_traj_len), actions]
 
 				loss = mse_loss(q_action_taken_B, q_target)
 				loss.backward()
-				optimizer.step()
+				optimizer_Q2.step()
 
 				if (tt % tt_prnt == 0):
 					print('Q step B: ', loss.detach().item(), end='\t')
 
 				# V step
-				optimizer.zero_grad()
-				_, _, value_tensor = p1net(states)
+				optimizer_V.zero_grad()
+				_, _, value_tensor = p1net_V(states)
 				
 				loss = mse_loss(value_tensor, v_target)
 				loss.backward()
-				optimizer.step()
+				optimizer_V.step()
 
 				if (tt % tt_prnt == 0):
 					print('V step: ', loss.detach().item(), end='\n')
@@ -259,7 +279,7 @@ if __name__ == '__main__':
 				with torch.no_grad():
 							
 					polyak = 0.995 # (default in openai pseudocode)
-					for param, param_target in zip(p1net.parameters(), v_target_net.parameters()):
+					for param, param_target in zip(p1net_V.parameters(), v_target_net.parameters()):
 						param_target.data.copy_(polyak * param_target.data + (1 - polyak) * param.data)
 
 		# End epoch
@@ -273,16 +293,16 @@ if __name__ == '__main__':
 		if (i % 5 == 4):
 
 			# agent plays argmax of q function
-			p1net.eval()
+			p1net_Q1.eval()
 			for k in range(PARELLEL_PER_BATCH):
 				p1s[k].evalmode = True
-				p1s[k].warmup_epochs = False
+				p1s[k].warmup = False
 				p1s[k].wins = 0
 
 			p1wins_eval, p2wins_eval = 0, 0
 
 			for j in range(BATCH_SIZE): 
-				winner_strings = run_parallel_learning_episode(PARELLEL_PER_BATCH, p1s, p2s, p1net)
+				winner_strings = run_parallel_learning_episode(PARELLEL_PER_BATCH, p1s, p2s, p1net_Q1)
 				
 				for k in range(PARELLEL_PER_BATCH):
 					if(winner_strings[k] == p1s[k].name):
@@ -297,7 +317,7 @@ if __name__ == '__main__':
 					# empty the player buffers without storing in replay
 					p1s[k].empty_buffer()
 
-			p1net.train()
+			p1net_Q1.train()
 			for k in range(PARELLEL_PER_BATCH):
 				p1s[k].evalmode = False
 
