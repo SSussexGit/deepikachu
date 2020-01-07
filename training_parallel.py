@@ -132,10 +132,10 @@ if __name__ == '__main__':
 		# warmup mode
 		if(i >= warmup_epochs):
 			for k in range(PARELLEL_PER_BATCH):
-				p1s[k].warmup_epochs = False
+				p1s[k].warmup = False
 		else:
 			for k in range(PARELLEL_PER_BATCH):
-				p1s[k].warmup_epochs = True
+				p1s[k].warmup = True
 
 		# simulate `BATCH_SIZE` * `PARELLEL_PER_BATCH` games parallelized and store result in replay
 		for j in range(BATCH_SIZE):
@@ -276,7 +276,7 @@ if __name__ == '__main__':
 			p1net.eval()
 			for k in range(PARELLEL_PER_BATCH):
 				p1s[k].evalmode = True
-				p1s[k].warmup_epochs = False
+				p1s[k].warmup = False
 				p1s[k].wins = 0
 
 			p1wins_eval, p2wins_eval = 0, 0
