@@ -46,25 +46,25 @@ if __name__ == '__main__':
 	np.random.seed(c)
 
 	state_embedding_settings = {
-		'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
-		'type' :        {'embed_dim' : 16, 'dict_size' : neural_net.MAX_TOK_TYPE},
-		'move' :        {'embed_dim' : 16, 'dict_size' : neural_net.MAX_TOK_MOVE},
-		'move_type' :   {'embed_dim' : 16, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
-		'ability' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ABILITY},
-		'item' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ITEM},
-		'condition' :   {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_CONDITION},
-		'weather' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_WEATHER},
-		'alive' :       {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ALIVE},
-		'disabled' :    {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_DISABLED},
-		'spikes' :      {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_SPIKES},
-		'toxicspikes' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_TOXSPIKES},
-		'fieldeffect' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_FIELD},
+		'pokemon' :     {'embed_dim' : 3, 'dict_size' : neural_net.MAX_TOK_POKEMON},
+		'type' :        {'embed_dim' : 3, 'dict_size' : neural_net.MAX_TOK_TYPE},
+		'move' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_MOVE},
+		'move_type' :   {'embed_dim' : 3, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
+		'ability' :     {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_ABILITY},
+		'item' :        {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_ITEM},
+		'condition' :   {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_CONDITION},
+		'weather' :     {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_WEATHER},
+		'alive' :       {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_ALIVE},
+		'disabled' :    {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_DISABLED},
+		'spikes' :      {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_SPIKES},
+		'toxicspikes' : {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_TOXSPIKES},
+		'fieldeffect' : {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_FIELD},
 	}	
 
 
 
-	EPOCHS = 100
-	BATCH_SIZE = 16
+	EPOCHS = 50
+	BATCH_SIZE = 4
 	PARELLEL_PER_BATCH = 64
 	gamma = 0.99
 	lam = 0.95
@@ -92,7 +92,7 @@ if __name__ == '__main__':
 	v_target_net.to(DEVICE)
 
 	# experience replay
-	replay_size = 1e5
+	replay_size = 1e6
 	minibatch_size = 1000  # number of examples sampled from experience replay in each update
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
