@@ -24,8 +24,7 @@ Defines agent behavior.
 
 Defines structures reoccuring in simulations, such as messages by the simulator or actions by the agents.
 
-
-
+To run the team generation materials you need to install offing with "npm I --save koffing". https://github.com/route1rodent/koffing
 
 Documentation: Pokémon Showdown
 ========================================================================

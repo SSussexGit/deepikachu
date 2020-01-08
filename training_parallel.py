@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
 
 	EPOCHS = 50
-	BATCH_SIZE = 4
+	BATCH_SIZE = 16
 	PARELLEL_PER_BATCH = 64
 	gamma = 0.99
 	lam = 0.95
@@ -75,9 +75,9 @@ if __name__ == '__main__':
 	train_update_iters = 100
 
 	# neural nets
-	d_player = 64
-	d_opp = 64
-	d_field = 32
+	d_player = 16
+	d_opp = 16
+	d_field = 4
 
 	p1net = DeePikachu0(
 		state_embedding_settings,
@@ -103,7 +103,8 @@ if __name__ == '__main__':
 
 	# game mode
 	formatid = 'gen5ou'  # 'gen5ou' 'gen5randombattle'
-	player_teams = None #teams_data.team1
+
+	player_teams = teams_data.team4 #None #teams_data.team1
 	
 
 	# optimizer 
@@ -139,7 +140,6 @@ if __name__ == '__main__':
 
 		# simulate `BATCH_SIZE` * `PARELLEL_PER_BATCH` games parallelized and store result in replay
 		for j in range(BATCH_SIZE):
-
 			winner_strings = run_parallel_learning_episode(
 				PARELLEL_PER_BATCH, p1s, p2s, p1net, formatid=formatid, team=player_teams, verbose=verbose)
 			

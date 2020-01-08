@@ -155,7 +155,6 @@ class ParallelLearningAgent(SACAgent):
 		'''
 		self.request_update(request.message)
 		message = request.message['request_dict']
-
 		#save the state in the buffer
 
 		#first get our valid action space
