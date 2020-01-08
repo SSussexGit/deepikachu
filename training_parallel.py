@@ -210,9 +210,11 @@ if __name__ == '__main__':
 
 					# q function for s, a pairs
 					p1net_Q1.eval()
+					p1net_Q2.eval()
 					q_tensor_A_fixed, _, _ = p1net_Q1(states)
 					_, q_tensor_B_fixed, _ = p1net_Q2(states)
 					p1net_Q1.train()
+					p1net_Q2.train()
 
 
 					# q function regression target
@@ -332,7 +334,7 @@ if __name__ == '__main__':
 			print()
 
 			if(p1winrate_eval >= max_eval_winrate):
-				torch.save(p1net.state_dict(), 'output/network_'+ str(c)+'_'+str(i)+'.pth')
+				torch.save(p1net_Q1.state_dict(), 'output/network_'+ str(c)+'_'+str(i)+'.pth')
 			eval_win_array.append(p1winrate_eval)
 
 	with open('output/eval_results' + str(c) + '.csv', 'w') as myfile:
