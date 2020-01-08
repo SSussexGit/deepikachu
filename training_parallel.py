@@ -46,21 +46,20 @@ if __name__ == '__main__':
 	np.random.seed(c)
 
 	state_embedding_settings = {
-		'pokemon' :     {'embed_dim' : 3, 'dict_size' : neural_net.MAX_TOK_POKEMON},
-		'type' :        {'embed_dim' : 3, 'dict_size' : neural_net.MAX_TOK_TYPE},
-		'move' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_MOVE},
-		'move_type' :   {'embed_dim' : 3, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
-		'ability' :     {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_ABILITY},
-		'item' :        {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_ITEM},
-		'condition' :   {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_CONDITION},
-		'weather' :     {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_WEATHER},
-		'alive' :       {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_ALIVE},
-		'disabled' :    {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_DISABLED},
-		'spikes' :      {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_SPIKES},
-		'toxicspikes' : {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_TOXSPIKES},
-		'fieldeffect' : {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_FIELD},
+		'pokemon' :     {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_POKEMON},
+		'type' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_TYPE},
+		'move' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE},
+		'move_type' :   {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
+		'ability' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ABILITY},
+		'item' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ITEM},
+		'condition' :   {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_CONDITION},
+		'weather' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_WEATHER},
+		'alive' :       {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ALIVE},
+		'disabled' :    {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_DISABLED},
+		'spikes' :      {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_SPIKES},
+		'toxicspikes' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_TOXSPIKES},
+		'fieldeffect' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_FIELD},
 	}	
-
 
 
 	EPOCHS = 50
@@ -75,9 +74,9 @@ if __name__ == '__main__':
 	train_update_iters = 100
 
 	# neural nets
-	d_player = 16
-	d_opp = 16
-	d_field = 4
+	d_player = 32
+	d_opp = 32
+	d_field = 16
 
 	p1net = DeePikachu0(
 		state_embedding_settings,
@@ -99,7 +98,7 @@ if __name__ == '__main__':
 	# agents
 	p1s = [ParallelLearningAgent(
 		id='p1', name='Red', size=MAX_GAME_LEN + 1, gamma=gamma, lam=lam, alpha=alpha) for _ in range(PARELLEL_PER_BATCH)]
-	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
+	p2s = [DefaultAgent(id='p2', name='Blue') for _ in range(PARELLEL_PER_BATCH)]
 
 	# game mode
 	formatid = 'gen5ou'  # 'gen5ou' 'gen5randombattle'

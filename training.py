@@ -474,24 +474,24 @@ if __name__ == '__main__':
     python3 training.py mode=train
     '''
     state_embedding_settings = {
-        'pokemon' :     {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_POKEMON},
-        'type' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_TYPE},
-        'move' :        {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE},
-        'move_type' :   {'embed_dim' : 6, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
-        'ability' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ABILITY},
-        'item' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ITEM},
-        'condition' :   {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_CONDITION},
-        'weather' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_WEATHER},
-        'alive' :       {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ALIVE},
-        'disabled' :    {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_DISABLED},
-        'spikes' :      {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_SPIKES},
-        'toxicspikes' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_TOXSPIKES},
-        'fieldeffect' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_FIELD},
+        'pokemon' :     {'embed_dim' : 3, 'dict_size' : neural_net.MAX_TOK_POKEMON},
+        'type' :        {'embed_dim' : 3, 'dict_size' : neural_net.MAX_TOK_TYPE},
+        'move' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_MOVE},
+        'move_type' :   {'embed_dim' : 3, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
+        'ability' :     {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_ABILITY},
+        'item' :        {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_ITEM},
+        'condition' :   {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_CONDITION},
+        'weather' :     {'embed_dim' : 2, 'dict_size' : neural_net.MAX_TOK_WEATHER},
+        'alive' :       {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_ALIVE},
+        'disabled' :    {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_DISABLED},
+        'spikes' :      {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_SPIKES},
+        'toxicspikes' : {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_TOXSPIKES},
+        'fieldeffect' : {'embed_dim' : 1, 'dict_size' : neural_net.MAX_TOK_FIELD},
     }
 
     d_player = 16
     d_opp = 16
-    d_field = 16
+    d_field = 4
 
     alpha = 0.05
     warm_up = 3 #number of epochs playing randomly
@@ -528,7 +528,7 @@ if __name__ == '__main__':
 
     #handle command line input whether to train or test
     if(len(sys.argv)>1 and sys.argv[1] == 'test'):
-        p1.network.load_state_dict(torch.load('output4/network_0_19.pth', map_location=torch.device('cpu')))
+        p1.network.load_state_dict(torch.load('output7/network_6_24.pth', map_location=torch.device('cpu')))
         p1.network.eval()
         p1.evalmode = True
         for i in range(0, 1):
