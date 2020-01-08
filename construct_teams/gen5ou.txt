@@ -15176,7 +15176,8 @@ EVs: 252 HP / 8 Atk / 228 Def / 12 SpA / 8 SpD
 Relaxed Nature
 IVs: 30 Spe
 - Earthquake
-- Hidden Power [- U-turn
+- Hidden Power [Ice]
+- U-turn
 - Stealth Rock
 
 Garchomp (M) @ Yache Berry
@@ -18002,7 +18003,7 @@ Trait: Poison Heal
 EVs: 244 HP / 44 Def / 220 Spd
 Impish Nature (+Def, -SpA)
 - Protect
-- Sword Dance
+- Swords Dance
 - Ice Fang
 - Earthquake
 

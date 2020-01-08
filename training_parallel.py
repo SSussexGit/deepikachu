@@ -104,7 +104,7 @@ if __name__ == '__main__':
 	# game mode
 	formatid = 'gen5ou'  # 'gen5ou' 'gen5randombattle'
 
-	player_teams = teams_data.team4 #None #teams_data.team1
+	player_teams = teams_data.team1 #None #teams_data.team1
 	
 
 	# optimizer 
