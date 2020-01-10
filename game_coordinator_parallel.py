@@ -246,7 +246,7 @@ def recurse_cat_state(empty_state, list_of_states):
 	return empty_state
 
 
-def run_parallel_learning_episode(K, p1s, p2s, network, formatid='gen5ou', team=None, verbose=True):
+def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_teams, verbose=True):
 	'''
 	takes in 2 agents and plays K games between them in parallel (one forward pass of network)
 	Assumes p1s are ParallelLearningAgent
@@ -267,7 +267,12 @@ def run_parallel_learning_episode(K, p1s, p2s, network, formatid='gen5ou', team=
 	for k in range(K):
 		sim[k].stdin.write('>start {"formatid":"' + (formatid) + '"}\n')
 
-		if team:
+
+		if player_teams:
+			# sample random team from player_teams
+			team = random.choice(player_teams)
+			# print('Starting game with team: ', player_teams.index(team))
+
 			sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + (team) + '" }\n')
 			sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + (team) + '" }\n')
 		else:
