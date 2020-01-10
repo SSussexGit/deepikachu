@@ -152,10 +152,12 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 
 					# v function regression target (min over both q heads:)
 					# 1
+					q_A_with_mask_applied = torch.where(valid_actions==1, q_tensor_A_fixed, -torch.tensor(float('inf')))
+					
 					valid_q_A = torch.mul(valid_actions, torch.exp(
-						(q_tensor_A_fixed-torch.mean(q_tensor_A_fixed, dim=1, keepdim=True)) / alpha))
+						(q_tensor_A_fixed-torch.max(q_A_with_mask_applied, dim=1, keepdim=True)[0]) / alpha))
 					valid_policy_A = valid_q_A / valid_q_A.sum(dim=1, keepdim=True)
-
+					
 					actions_tilde = torch.distributions.Categorical(
 						probs=valid_policy_A).sample()
 
@@ -339,8 +341,8 @@ if __name__ == '__main__':
 
 	# game
 	epochs = 100
-	batch_size = 8
-	parallel_per_batch = 32
+	batch_size = 2
+	parallel_per_batch = 8
 	eval_epoch_every = 5
 	formatid = 'gen5ou'
 
@@ -350,7 +352,7 @@ if __name__ == '__main__':
 
 	# training
 	alpha = 0.05
-	warmup_epochs = 5  # random playing
+	warmup_epochs = 1  # random playing
 	train_update_iters = 50
 	print_obj_every = 10
 
@@ -374,7 +376,7 @@ if __name__ == '__main__':
 
 	# experience replay
 	replay_size = 1e6
-	minibatch_size = 1000 # number of examples sampled from experience replay in each update
+	minibatch_size = 10 # number of examples sampled from experience replay in each update
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
 	# agents
