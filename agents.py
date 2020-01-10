@@ -133,7 +133,51 @@ class DefaultAgent:
             #extract pokemon token
             pokemon_name_string = pokemon_dict['ident'].split(': ')[1]
             pokemon_state['pokemon_id']  = pokedex_data[game_name_to_dex_name(pokemon_name_string)]['num']
+
+
+            #extract hp, max hp and condition
+            #first split on spaces and check length to see if painted or status.
+            condition_list = pokemon_dict['condition'].split(' ')
+                   
+
+            #then split first on '/' to get hp values
+            health_values = condition_list[0].split('/')
+
+            #set alive status
+            if(health_values[0] != '0'):
+                pokemon_state['alive'] = True
+            else: 
+                pokemon_state['alive'] = False
+                continue
+
+            if(len(health_values) == 2):
+                pokemon_state['stats']['max_hp'] = int(health_values[1])
+            pokemon_state['hp'] = int(health_values[0])
+
+            if(len(condition_list) > 1):
+                for condition in condition_list[1:]:
+                    if(condition_list[1] == 'fnt'):
+                        pokemon_state['alive'] = False
+                    
+                    #status confusion handled as special case terrain effect
+                    for status_key in status_data:
+                        if((status_key in condition_list[1]) and (status_key != 'confusion')):
+                            pokemon_state['condition'] = status_data[status_key]['num']
+                        else:
+                            pokemon_state['condition'] = status_data[status_key]['num']
+                    if("confusion" in condition_list):
+                        self.state['field']['confusion'] = True
+                    else:
+                        self.state['field']['confusion'] = False
             
+
+            #extract item information
+            item_string = pokemon_dict['item']
+            if(item_string == ''):
+                pokemon_state['item'] = 0 #if no item tag just put 0
+            else:   
+                pokemon_state['item'] = item_data[item_string]['num']
+
             #extract move information
             j = 0 
             for move_string in pokemon_dict['moves']:
@@ -160,46 +204,7 @@ class DefaultAgent:
             for key in pokemon_state['stats']:
                 #handle max_hp seperately after because it is given in the condition
                 if key != 'max_hp':
-                    pokemon_state['stats'][key] = int(pokemon_dict['stats'][key])
-
-            #extract hp, max hp and condition
-            #first split on spaces and check length to see if painted or status.
-            condition_list = pokemon_dict['condition'].split(' ')
-            if(len(condition_list) > 1):
-                for condition in condition_list[1:]:
-                    if(condition_list[1] == 'fnt'):
-                        pokemon_state['alive'] = False
-                    
-                    #status confusion handled as special case terrain effect
-                    for status_key in status_data:
-                        if((status_key in condition_list[1]) and (status_key != 'confusion')):
-                            pokemon_state['condition'] = status_data[status_key]['num']
-                        else:
-                            pokemon_state['condition'] = status_data[status_key]['num']
-                    if("confusion" in condition_list):
-                        self.state['field']['confusion'] = True
-                    else:
-                        self.state['field']['confusion'] = False
-                    
-
-            #then split first on '/' to get hp values
-            health_values = condition_list[0].split('/')
-            if(len(health_values) == 2):
-                pokemon_state['stats']['max_hp'] = int(health_values[1])
-            pokemon_state['hp'] = int(health_values[0])
-            
-            #set alive status
-            if(health_values[0] != '0'):
-                pokemon_state['alive'] = True
-            else: 
-                pokemon_state['alive'] = False
-
-            #extract item information
-            item_string = pokemon_dict['item']
-            if(item_string == ''):
-                pokemon_state['item'] = 0 #if no item tag just put 0
-            else:   
-                pokemon_state['item'] = item_data[item_string]['num']
+                    pokemon_state['stats'][key] = int(pokemon_dict['stats'][key]) 
             
 
             #extract ability information
@@ -390,14 +395,15 @@ class DefaultAgent:
         #update from a 'poke' message if we have teampreview
         #only need to update some things if it effects the opponent
         if(player_id != self.id):
-            #assume it always updates the active pokemon
-            #find the active pokemon and update it
             if(message['id'] == 'faint'):
-                for pokemon_dict_index in self.state['opponent']['team']:
-                    pokemon_dict = copy.deepcopy(self.state['opponent']['team'][pokemon_dict_index])
-                    if(pokemon_dict['active'] == True):
-                        pokemon_dict['alive'] = False
-                        pokemon_dict['hp'] = 0
+                pokemon_location = self.get_pokemon_index(pokemon_name)
+                active_status=False
+                if self.state['opponent']['team'][pokemon_location]['active'] == True:
+                    active_status = True
+                    self.state['opponent']['active'] = copy.deepcopy(default_state['opponent']['active'])
+                self.state['opponent']['team'][pokemon_location] = copy.deepcopy(default_state['opponent']['team'][pokemon_location])
+                self.state['opponent']['team'][pokemon_location]['active'] = active_status
+                return
 
             #dealing with switching
             if message['id'] == 'switch' or message['id'] == "drag":
