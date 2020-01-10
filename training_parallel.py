@@ -328,6 +328,9 @@ if __name__ == '__main__':
 
 	fstring = 'testrun'
 
+	load_state = False
+	load_fstring = 'testrun_0_7'
+
 	# game
 	epochs = 100
 	batch_size = 4
@@ -379,6 +382,12 @@ if __name__ == '__main__':
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 	starting_epoch = 0 # only to be changed by load_state
 
+	# load if intended
+	if load_state:
+		p1net, v_target_net, optimizer, c, loaded_epoch = load_model(
+			load_fstring, model=p1net, model_target=v_target_net, optimizer=optimizer)
+		starting_epoch = loaded_epoch + 1
+
 	'''
 	###################
 	#  POKEMON ARENA  #
@@ -386,15 +395,6 @@ if __name__ == '__main__':
 	''' 
 
 	TRAIN_TEAM_SIZE = 3
-
-	load_state = False
-	load_fstring = 'testrun_0_7'
-
-	# load if intended
-	if load_state:
-		p1net, v_target_net, optimizer, c, loaded_epoch = load_model(
-			load_fstring, model=p1net, model_target=v_target_net, optimizer=optimizer)
-		starting_epoch = loaded_epoch + 1
 
 	# sample teams
 	player_teams = [teams_data.team1, teams_data.team2, teams_data.team3] # TODO 
