@@ -744,6 +744,39 @@ class RandomAgent(DefaultAgent):
         
         return PlayerAction(self.id, random_action)
 
+
+class DeterministicAgent(DefaultAgent):
+    '''
+    Class implementing player choosing random strategy deterministicall moves
+    '''
+    def __init__(self, id, name='Ash'):
+
+        self.id = id
+        self.name = name
+        self.history = []
+        self.state = copy.deepcopy(default_state)
+
+        # deterministic strategy for each possible number of valid actions
+        self.seed = [np.random.randint(k) for k in range(1, 11)]
+
+    def process_request(self, request):
+        '''
+        Receives request sent by `pokemon-showdown simulate-game` and returns a PlayerAction
+        '''
+        # update state space
+        self.request_update(request.message)
+        message = request.message['request_dict']
+        # first get our valid action space
+        valid_actions = get_valid_actions(self.state, message)
+        
+        n_valid_actions = len(valid_actions)
+        if (n_valid_actions == 0):
+            return PlayerAction(self.id, copy.deepcopy(ACTION['default']))
+        else:
+            strategy = self.seed[n_valid_actions - 1]
+            return PlayerAction(self.id, valid_actions[strategy])
+
+
 class HumanAgent(DefaultAgent):
     '''
     Class implementing player choosing random (valid) moves
