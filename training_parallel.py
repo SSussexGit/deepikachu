@@ -329,10 +329,10 @@ if __name__ == '__main__':
 	fstring = 'testrun'
 
 	# game
-	epochs = 6
-	batch_size = 2
-	parallel_per_batch = 2
-	eval_epoch_every = 2
+	epochs = 100
+	batch_size = 4
+	parallel_per_batch = 32
+	eval_epoch_every = 5
 	formatid = 'gen5ou'
 
 	gamma = 0.99
@@ -341,9 +341,9 @@ if __name__ == '__main__':
 
 	# training
 	alpha = 0.05
-	warmup_epochs = 0  # random playing
-	train_update_iters = 2
-	print_obj_every = 1
+	warmup_epochs = 5  # random playing
+	train_update_iters = 50
+	print_obj_every = 10
 
 	# player 1 neural net
 	# initialize target network as p1net
@@ -364,8 +364,8 @@ if __name__ == '__main__':
 	v_target_net.to(DEVICE)
 
 	# experience replay
-	replay_size = 1e3
-	minibatch_size = 2 # number of examples sampled from experience replay in each update
+	replay_size = 1e6
+	minibatch_size = 1000 # number of examples sampled from experience replay in each update
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
 	# agents
@@ -387,7 +387,7 @@ if __name__ == '__main__':
 
 	TRAIN_TEAM_SIZE = 3
 
-	load_state = True
+	load_state = False
 	load_fstring = 'testrun_0_7'
 
 	# load if intended
