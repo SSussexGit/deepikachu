@@ -308,6 +308,12 @@ if __name__ == '__main__':
 
 	torch.manual_seed(c)
 	np.random.seed(c)
+	'''
+	#determinism when running on cuda (needed to reproduce runs)
+	if(DEVICE == 'cuda:0'):
+		torch.backends.cudnn.deterministic = True
+		torch.backends.cudnn.benchmark = False
+	'''
 
 	# parameters
 	state_embedding_settings = {
@@ -333,7 +339,7 @@ if __name__ == '__main__':
 
 	# game
 	epochs = 100
-	batch_size = 4
+	batch_size = 8
 	parallel_per_batch = 32
 	eval_epoch_every = 5
 	formatid = 'gen5ou'
@@ -374,7 +380,7 @@ if __name__ == '__main__':
 	# agents
 	p1s = [ParallelLearningAgent(
 		id='p1', name='Red', size=MAX_GAME_LEN + 1, gamma=gamma, lam=lam, alpha=alpha) for _ in range(parallel_per_batch)]
-	p2s = [DeterministicAgent(id='p2', name='Blue') for _ in range(parallel_per_batch)]
+	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(parallel_per_batch)]
 
 	# optimizer 
 	lr = 0.0001 #previously used 0.001, 0.0004 (SAC paper recommendation)

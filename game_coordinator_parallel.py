@@ -264,16 +264,17 @@ def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_teams, 
 
 	# start all games
 	for k in range(K):
-		sim[k].stdin.write('>start {"formatid":"' + (formatid) + '"}\n')
+		sim[k].stdin.write('>start {"formatid":"' + (formatid) + '"}\n') #to add random seed do "seed":"[1234,5678,9012,3456]"
 
 
 		if player_teams:
 			# sample random team from player_teams
-			team = random.choice(player_teams)
+			team1 = random.choice(player_teams)
+			team2 = random.choice(player_teams)
 			# print('Starting game with team: ', player_teams.index(team))
 
-			sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + (team) + '" }\n')
-			sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + (team) + '" }\n')
+			sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + (team1) + '" }\n')
+			sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + (team2) + '" }\n')
 		else:
 			sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '" }\n')
 			sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '" }\n')			
