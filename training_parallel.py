@@ -397,7 +397,7 @@ if __name__ == '__main__':
 		starting_epoch = loaded_epoch + 1
 
 	# sample teams
-	player_teams = [teams_data.team1, teams_data.team2, teams_data.team3] # TODO sample only teams of size `TRAIN_TEAM_SIZE`
+	player_teams = [teams_data.team1, teams_data.team2, teams_data.team3] # TODO 
 
 	# run training epochs
 	p1s, p2s, optimizer, p1net, replay, results = train_parallel_epochs(
