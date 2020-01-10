@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
 	EPOCHS = 50
 	BATCH_SIZE = 16
-	PARELLEL_PER_BATCH = 64
+	PARELLEL_PER_BATCH = 16
 	gamma = 0.99
 	lam = 0.95
 	verbose = True
@@ -103,7 +103,7 @@ if __name__ == '__main__':
 	# game mode
 	formatid = 'gen5ou'  # 'gen5ou' 'gen5randombattle'
 
-	player_teams = teams_data.team1 #None #teams_data.team1
+	player_teams = None #teams_data.team1 #None #teams_data.team1
 	
 
 	# optimizer 

@@ -333,8 +333,12 @@ class DefaultAgent:
             pokemon_dict = copy.deepcopy(self.state[player]['team'][pokemon_dict_index])
             if(pokemon_dict['pokemon_id'] == pokedex_data[game_name_to_dex_name(pokemon_string)]['num']):
                 pokemon_location = pokemon_dict_index
+        '''
         if(pokemon_location == None):
+            print(self.state[player]['team'])
+            print(pokedex_data[game_name_to_dex_name(pokemon_string)]['num'])
             raise ValueError("could not find pokemon in opponents team: " + pokemon_string)
+        '''
         return pokemon_location
 
     def disable_reset(self, player="opponent"):
@@ -368,6 +372,8 @@ class DefaultAgent:
             move_string = message['additional_info']
             if(move_string != None):
                 pokemon_location = self.get_pokemon_index(pokemon_name, player)
+                if(pokemon_location==None):
+                    return
                 for moveid in self.state['opponent']['team'][pokemon_location]['moves']:
                     if move_data[game_name_to_dex_name(move_string)]['num'] == self.state[player]['team'][pokemon_location]['moves'][moveid]['moveid']:
                         self.state[player]['team'][pokemon_location]['moves'][moveid]['disabled'] = on_off_switch
@@ -386,6 +392,9 @@ class DefaultAgent:
         '''
         
         subject = message['pokemon']
+
+        if(message['id'] == 'minor_activate'):
+            return
         #extract into player and pokemon
         player_pokemon = subject.split(': ') #format is 'playerid: [pokemonname]'
         #extract the player id from the player part
@@ -397,6 +406,8 @@ class DefaultAgent:
         if(player_id != self.id):
             if(message['id'] == 'faint'):
                 pokemon_location = self.get_pokemon_index(pokemon_name)
+                if(pokemon_location==None):
+                    return
                 active_status=False
                 if self.state['opponent']['team'][pokemon_location]['active'] == True:
                     active_status = True
@@ -442,6 +453,8 @@ class DefaultAgent:
             #minordamage to update hp
             if message['id'] == 'minor_damage' or message['id'] == 'minor_heal':
                 pokemon_location = self.get_pokemon_index(pokemon_name)
+                if(pokemon_location==None):
+                    return
                 #need to update the hp, status
                 #split hp on the space, then on the /
                 hp_condition = message['hp'].split(' ')
@@ -478,6 +491,8 @@ class DefaultAgent:
             #handle minor status message
             if(message['id'] == 'minor_status'):
                 pokemon_location = self.get_pokemon_index(pokemon_name)
+                if(pokemon_location==None):
+                    return
                 status_string = message['status']
                 if (status_string == 'confusion'):
                     self.state['field']['confusionopp'] = True
@@ -494,6 +509,8 @@ class DefaultAgent:
             #handle curestatus
             if(message['id'] == 'minor_curestatus'):
                 pokemon_location = self.get_pokemon_index(pokemon_name)
+                if(pokemon_location==None):
+                    return
                 status_string = message['status']
                 if (status_string == 'confusion'):
                     self.state['field']['confusionopp'] = False
@@ -508,6 +525,8 @@ class DefaultAgent:
             #handles boosts
             if(message['id'] in ['minor_boost', 'minor_unboost', 'minor_setboost']):
                 pokemon_location = self.get_pokemon_index(pokemon_name)
+                if(pokemon_location==None):
+                    return
                 stat_string = message['stat']
                 amount_int = int(message['amount'])
                 if(message['id'] == 'minor_boost'):
@@ -538,16 +557,22 @@ class DefaultAgent:
             #handle items being used up
             if(message['id'] == 'minor_enditem'):
                 pokemon_location = self.get_pokemon_index(pokemon_name)
+                if(pokemon_location==None):
+                    return
                 self.state['opponent']['team'][pokemon_location]['item'] = 0
 
             #handle reveal of items of getting item back
             if(message['id'] == 'minor_item'):
                 pokemon_location = self.get_pokemon_index(pokemon_name)
+                if(pokemon_location==None):
+                    return
                 self.state['opponent']['team'][pokemon_location]['item'] = item_data[game_name_to_dex_name(message['item'])]['num']
 
 
             #if the pokemon of interest is active, update the active slot
             pokemon_location = self.get_pokemon_index(pokemon_name)
+            if(pokemon_location==None):
+                return
             if self.state['opponent']['team'][pokemon_location]['active']:
                 self.state['opponent']['active'] = copy.deepcopy(self.state['opponent']['team'][pokemon_location])
 
@@ -599,6 +624,8 @@ class DefaultAgent:
 
             #if the pokemon of interest is active, update the active slot
             pokemon_location = self.get_pokemon_index(pokemon_name, "player")
+            if(pokemon_location==None):
+                return
             if self.state['player']['team'][pokemon_location]['active']:
                 self.state['player']['active'] = copy.deepcopy(self.state['player']['team'][pokemon_location])
 
