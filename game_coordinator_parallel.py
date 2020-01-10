@@ -181,7 +181,6 @@ class ParallelLearningAgent(SACAgent):
 		print()
 		print()
 		'''
-
 		is_teampreview = ('teamspec' in valid_actions[0])
 		q_tensor = np.exp((q_tensor-np.mean(q_tensor)) / self.alpha)
 		if(self.warmup):
