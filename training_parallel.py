@@ -345,30 +345,30 @@ if __name__ == '__main__':
 	# parameters
 	# state_embeddings must be divisible by 4 (for MultiHeadAttention heads=4)
 	state_embedding_settings = {
-		'pokemon':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_POKEMON},
-		'move':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_MOVE},
-		'type':        {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_TYPE},
-		'move_type':   {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
-		'ability':     {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_ABILITY},
-		'item':        {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_ITEM},
-		'condition':   {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_CONDITION},
-		'weather':     {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_WEATHER},
-		'alive':       {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_ALIVE},
-		'disabled':    {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_DISABLED},
-		'spikes':      {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_SPIKES},
-		'toxicspikes': {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_TOXSPIKES},
-		'fieldeffect': {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_FIELD},
+		'pokemon':     {'embed_dim': 32, 'dict_size': neural_net.MAX_TOK_POKEMON},
+		'move':        {'embed_dim': 16, 'dict_size': neural_net.MAX_TOK_MOVE},
+		'type':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TYPE},
+		'move_type':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
+		'ability':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ABILITY},
+		'item':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ITEM},
+		'condition':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_CONDITION},
+		'weather':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_WEATHER},
+		'alive':       {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ALIVE},
+		'disabled':    {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_DISABLED},
+		'spikes':      {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_SPIKES},
+		'toxicspikes': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TOXSPIKES},
+		'fieldeffect': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_FIELD},
 	}
 
-	fstring = 'mewtwo1v1'
+	fstring = 'run1v1'
 
 	load_state = False
 	load_fstring = 'filename'
 
 	# game
 	epochs = 100
-	batch_size = 2
-	parallel_per_batch = 32
+	batch_size = 4
+	parallel_per_batch = 64
 	eval_epoch_every = 2
 	formatid = 'gen5ou'
 
@@ -378,17 +378,17 @@ if __name__ == '__main__':
 
 	# training
 	alpha = 0.05
-	warmup_epochs = 1  # random playing
+	warmup_epochs = 5  # random playing
 	train_update_iters = 200
-	print_obj_every = 20
+	print_obj_every = 100
 
 	# player 1 neural net (initialize target network as p1net)
 	# context is compressed and combined final representation of [player, opponent, field]
 	# 	and used with moves, pokemon to compute Q values (hence don't make too big in relation to embeddings)
-	d_player = 8
-	d_opp = 8
-	d_field = 8
-	d_context = 8
+	d_player = 32
+	d_opp = 16
+	d_field = 16
+	d_context = 32
 
 	p1net = DeePikachu0(
 		state_embedding_settings,
@@ -404,7 +404,7 @@ if __name__ == '__main__':
 	v_target_net.to(DEVICE)
 
 	# experience replay
-	replay_size = 1e5
+	replay_size = 1e6
 	minibatch_size = 200 # number of examples sampled from experience replay in each update
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
