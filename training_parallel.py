@@ -367,7 +367,7 @@ if __name__ == '__main__':
 
 	# game
 	epochs = 100
-	batch_size = 4
+	batch_size = 8
 	parallel_per_batch = 64
 	eval_epoch_every = 2
 	formatid = 'gen5ou'
