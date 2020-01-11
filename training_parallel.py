@@ -27,10 +27,10 @@ from game_coordinator import *
 from game_coordinator_parallel import *
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-print(DEVICE)
 MAX_GAME_LEN = 400  # max length is 200 but if you u-turn every turn you move twice per turn
 SAVE_ROOT = 'output/'
 
+print(f'device = {DEVICE}')
 
 def save_model(fname, c, i, model, model_target, optimizer):
     torch.save({
@@ -65,6 +65,20 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	gamma, lam,
 	fstring, tt_print=10, verbose=True):
 
+	print(f'gamma = {gamma}')
+	print(f'lam = {lam}')
+	print(f'alpha = {alpha}')
+	print(f'formatid = {formatid}')
+	print(f'player_team_size = {player_team_size}')
+	print(f'warmup_epochs = {warmup_epochs}')
+	print(f'train_update_iters = {train_update_iters}')
+	print(f'replay_size = {replay.replay_size}')
+	print(f'replay_minibatch = {replay.minibatch_size}')
+	print(f'p1net d_player = {p1net.d_player}')
+	print(f'p1net d_opponent = {p1net.d_opp}')
+	print(f'p1net d_field = {p1net.d_field}')
+	print(f'p1net d_context = {p1net.d_context}')
+
 	mse_loss = nn.MSELoss(reduction='mean')
 
 	# training loop
@@ -74,7 +88,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 
 	print(f'\nEpochs: {epochs}\nGames per epoch: {batch_size * parallel_per_batch}')
 	print(f'(batch size: {batch_size}; in parallel: {parallel_per_batch})')
-	print(f'Initialized at epoch {starting_epoch}.')
+	print(f'Initialized at epoch {starting_epoch}.\n')
 
 	# simulate `EPOCHS` epochs
 	for i in range(starting_epoch, epochs + starting_epoch):
@@ -112,8 +126,18 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 
 				p1s[k].empty_buffer()
 
+		# End epoch
+		train_win_rate = float(p1wins) / float(p1wins + p2wins)
+		print('Epoch {:3d}:  train win rate: {}'.format(i, train_win_rate) + ('  (warm-up)' if (i < warmup_epochs) else ''), flush=True)
+
+		for k in range(parallel_per_batch):
+			p1s[k].wins = 0
+		train_win_array.append(train_win_rate)
+
 		# perform updates on neural net
 		if(replay.total_tuples > replay.minibatch_size):
+
+			q_losses_A, q_losses_B, v_losses = [], [], []
 
 			for tt in range(train_update_iters):
 
@@ -186,9 +210,11 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 				loss.backward()
 				optimizer.step()
 
-				if (tt % tt_print == 0 and verbose):
+				q_losses_A.append(loss.detach().item())
+				if (tt % tt_print == tt_print - 1 and verbose):
 					print('{:3d}'.format(tt), end='\t')
-					print('Q step A: {:.8f}'.format(loss.detach().item()), end='\t')
+					print('Q step A: {:.8f}'.format(sum(q_losses_A) / len(q_losses_A)), end='\t')
+					q_losses_A = []
 
 
 				# Q step B
@@ -201,8 +227,10 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 				loss.backward()
 				optimizer.step()
 
-				if (tt % tt_print == 0 and verbose):
-					print('Q step B: {:.8f}'.format(loss.detach().item()), end='\t')
+				q_losses_B.append(loss.detach().item())
+				if (tt % tt_print == tt_print - 1 and verbose):
+					print('Q step B: {:.8f}'.format(sum(q_losses_B) / len(q_losses_B)), end='\t')
+					q_losses_B = []
 
 				# V step
 				optimizer.zero_grad()
@@ -212,8 +240,10 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 				loss.backward()
 				optimizer.step()
 
-				if (tt % tt_print == 0 and verbose):
-					print('V step: {:.8f}'.format(loss.detach().item()), end='\n', flush=True)
+				v_losses.append(loss.detach().item())
+				if (tt % tt_print ==  tt_print - 1 and verbose):
+					print('V step: {:.8f}'.format(sum(v_losses) / len(v_losses)), end='\n', flush=True)
+					v_losses = []
 
 
 				# Update target network for value function using exponential moving average
@@ -223,15 +253,6 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 					for param, param_target in zip(p1net.parameters(), v_target_net.parameters()):
 						param_target.data.copy_(
 							polyak * param_target.data + (1 - polyak) * param.data)
-
-		# End epoch
-		train_win_rate = float(p1wins) / float(p1wins + p2wins)
-
-		print('Epoch {:3d}:  train win rate: {}'.format(i, train_win_rate) + ('  (warm-up)' if (i < warmup_epochs) else ''), flush=True)
-
-		for k in range(parallel_per_batch):
-			p1s[k].wins = 0
-		train_win_array.append(train_win_rate)
 
 		# do an eval epoch
 		if (i % eval_epoch_every == eval_epoch_every - 1):
@@ -318,31 +339,31 @@ if __name__ == '__main__':
 	# parameters
 	# state_embeddings must be divisible by 4 (for MultiHeadAttention heads=4)
 	state_embedding_settings = {
-		'pokemon':     {'embed_dim': 16, 'dict_size': neural_net.MAX_TOK_POKEMON},
-		'move':        {'embed_dim': 8, 'dict_size': neural_net.MAX_TOK_MOVE},
-		'type':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TYPE},
-		'move_type':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
-		'ability':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ABILITY},
-		'item':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ITEM},
-		'condition':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_CONDITION},
-		'weather':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_WEATHER},
-		'alive':       {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ALIVE},
-		'disabled':    {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_DISABLED},
-		'spikes':      {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_SPIKES},
-		'toxicspikes': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TOXSPIKES},
-		'fieldeffect': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_FIELD},
+		'pokemon':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_POKEMON},
+		'move':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_MOVE},
+		'type':        {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_TYPE},
+		'move_type':   {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
+		'ability':     {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_ABILITY},
+		'item':        {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_ITEM},
+		'condition':   {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_CONDITION},
+		'weather':     {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_WEATHER},
+		'alive':       {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_ALIVE},
+		'disabled':    {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_DISABLED},
+		'spikes':      {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_SPIKES},
+		'toxicspikes': {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_TOXSPIKES},
+		'fieldeffect': {'embed_dim': 2, 'dict_size': neural_net.MAX_TOK_FIELD},
 	}
 
-	fstring = 'testrun'
+	fstring = 'mewtwo1v1'
 
 	load_state = False
-	load_fstring = 'testrun_0_7'
+	load_fstring = 'filename'
 
 	# game
 	epochs = 100
 	batch_size = 4
-	parallel_per_batch = 32
-	eval_epoch_every = 5
+	parallel_per_batch = 16
+	eval_epoch_every = 2
 	formatid = 'gen5ou'
 
 	gamma = 0.99
@@ -351,17 +372,17 @@ if __name__ == '__main__':
 
 	# training
 	alpha = 0.05
-	warmup_epochs = 5  # random playing
-	train_update_iters = 30
-	print_obj_every = 10
+	warmup_epochs = 1  # random playing
+	train_update_iters = 100
+	print_obj_every = 20
 
 	# player 1 neural net (initialize target network as p1net)
 	# context is compressed and combined final representation of [player, opponent, field]
 	# 	and used with moves, pokemon to compute Q values (hence don't make too big in relation to embeddings)
-	d_player = 32
-	d_opp = 16
-	d_field = 16
-	d_context = 16
+	d_player = 8
+	d_opp = 8
+	d_field = 8
+	d_context = 8
 
 	p1net = DeePikachu0(
 		state_embedding_settings,
@@ -377,8 +398,8 @@ if __name__ == '__main__':
 	v_target_net.to(DEVICE)
 
 	# experience replay
-	replay_size = 1e6
-	minibatch_size = 1000 # number of examples sampled from experience replay in each update
+	replay_size = 1e5
+	minibatch_size = 100 # number of examples sampled from experience replay in each update
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
 	# agents
@@ -388,7 +409,7 @@ if __name__ == '__main__':
 
 	# optimizer 
 	lr = 0.0004 #previously used 0.001, 0.0004 (SAC paper recommendation)
-	weight_decay = 1e-3
+	weight_decay = 1e-5
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 	
 

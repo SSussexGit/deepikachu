@@ -273,6 +273,9 @@ def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_team_si
 			team1 = teams_data.get_random_team(player_team_size)
 			team2 = teams_data.get_random_team(player_team_size)
 
+			team2 = teams_data.team3
+			team2 = teams_data.team3
+
 			# print('Starting game with team: ')
 			# print(team1)
 			# print(team2)
