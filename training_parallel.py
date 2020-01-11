@@ -65,6 +65,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	gamma, lam,
 	fstring, tt_print=10, verbose=True):
 
+	# info
 	print(f'gamma = {gamma}')
 	print(f'lam = {lam}')
 	print(f'alpha = {alpha}')
@@ -72,6 +73,8 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	print(f'player_team_size = {player_team_size}')
 	print(f'warmup_epochs = {warmup_epochs}')
 	print(f'train_update_iters = {train_update_iters}')
+	print(f'lr = {optimizer.param_groups[0]["lr"]}')
+	print(f'weight_decay = {optimizer.param_groups[0]["weight_decay"]}')
 	print(f'replay_size = {replay.replay_size}')
 	print(f'replay_minibatch = {replay.minibatch_size}')
 	print(f'p1net d_player = {p1net.d_player}')
@@ -86,9 +89,12 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	train_win_array = []
 	eval_win_array = []
 
-	print(f'\nEpochs: {epochs}\nGames per epoch: {batch_size * parallel_per_batch}')
-	print(f'(batch size: {batch_size}; in parallel: {parallel_per_batch})')
-	print(f'Initialized at epoch {starting_epoch}.\n')
+	print()
+	print(f'epochs = {epochs}')
+	print(f'initialized at epoch = {starting_epoch}')
+	print(f'games per epoch = {batch_size * parallel_per_batch} (batch: {batch_size}, parallel: {parallel_per_batch})')
+	print()
+
 
 	# simulate `EPOCHS` epochs
 	for i in range(starting_epoch, epochs + starting_epoch):
@@ -361,8 +367,8 @@ if __name__ == '__main__':
 
 	# game
 	epochs = 100
-	batch_size = 4
-	parallel_per_batch = 16
+	batch_size = 2
+	parallel_per_batch = 32
 	eval_epoch_every = 2
 	formatid = 'gen5ou'
 
@@ -373,7 +379,7 @@ if __name__ == '__main__':
 	# training
 	alpha = 0.05
 	warmup_epochs = 1  # random playing
-	train_update_iters = 100
+	train_update_iters = 200
 	print_obj_every = 20
 
 	# player 1 neural net (initialize target network as p1net)
@@ -399,7 +405,7 @@ if __name__ == '__main__':
 
 	# experience replay
 	replay_size = 1e5
-	minibatch_size = 100 # number of examples sampled from experience replay in each update
+	minibatch_size = 200 # number of examples sampled from experience replay in each update
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
 	# agents

@@ -684,37 +684,44 @@ class DeePikachu0(nn.Module):
         self.value_function = FeedForward0(self.d_context, self.d_context, 1, dropout=dropout)
 
         # Q function (heads 1 and 2) 
+        # set 1 = self.context for attention part thats commented out
         self.q_combine_moves_context = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(self.move_dim + self.d_context, self.d_context), f_activation,
-                nn.Linear(self.d_context, self.d_context),
+                nn.Linear(self.d_context, 1), 
             ),
             nn.Sequential(
                 nn.Linear(self.move_dim + self.d_context, self.d_context), f_activation,
-                nn.Linear(self.d_context, self.d_context),
+                nn.Linear(self.d_context, 1),  
             )])
         
         self.q_combine_pokemon_context = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(self.pokemon_dim + self.d_context, self.d_context), f_activation,
-                nn.Linear(self.d_context, self.d_context),
+                nn.Linear(self.d_context, 1), 
             ),
             nn.Sequential(
                 nn.Linear(self.pokemon_dim + self.d_context, self.d_context), f_activation,
-                nn.Linear(self.d_context, self.d_context),
+                nn.Linear(self.d_context, 1), 
             )])
-            
+
         self.q_function = nn.ModuleList([
-            nn.Sequential(
-                SelfAttention0(heads=4, d_model=self.d_context, dropout=dropout) if attention else nn.Identity(),
-                nn.Linear(self.d_context, self.d_context), f_activation, 
-                nn.Linear(self.d_context, 1), 
-            ),
-            nn.Sequential(
-                SelfAttention0(heads=4, d_model=self.d_context, dropout=dropout) if attention else nn.Identity(),
-                nn.Linear(self.d_context, self.d_context), f_activation, 
-                nn.Linear(self.d_context, 1), 
-            )])
+            nn.Identity(),
+            nn.Identity()])
+            
+        # self.q_function = nn.ModuleList([
+        #     nn.Sequential(
+        #         SelfAttention0(heads=4, d_model=self.d_context, dropout=dropout) if attention else nn.Identity(),
+        #         nn.Linear(self.d_context, self.d_context), f_activation, 
+        #         nn.Linear(self.d_context, 1), 
+        #     ),
+        #     nn.Sequential(
+        #         SelfAttention0(heads=4, d_model=self.d_context, dropout=dropout) if attention else nn.Identity(),
+        #         nn.Linear(self.d_context, self.d_context), f_activation, 
+        #         nn.Linear(self.d_context, 1), 
+        #     )])
+        
+        
         
     def forward(self, x):
         
@@ -742,7 +749,7 @@ class DeePikachu0(nn.Module):
         context = self.hidden_reduce(hidden)
 
         # value function
-        value = self.value_function(context).squeeze(dim=1)#.sigmoid() # - apparently sigmoid not done in practice
+        value = self.value_function(context).squeeze(dim=1)
 
         # q function: self attend to different action options 
         moves_and_context = torch.cat(
@@ -758,12 +765,12 @@ class DeePikachu0(nn.Module):
         all_actions_A =  torch.cat([
             self.q_combine_moves_context[0](moves_and_context), 
             self.q_combine_pokemon_context[0](pokemon_and_context)], dim=1)
-        q_values_A = self.q_function[0](all_actions_A).squeeze(dim=2)#.sigmoid() #- apparently sigmoid not done in practice
+        q_values_A = self.q_function[0](all_actions_A).squeeze(dim=2)
 
         all_actions_B =  torch.cat([
             self.q_combine_moves_context[1](moves_and_context), 
             self.q_combine_pokemon_context[1](pokemon_and_context)], dim=1)
-        q_values_B = self.q_function[1](all_actions_B).squeeze(dim=2)#.sigmoid() #- apparently sigmoid not done in practice
+        q_values_B = self.q_function[1](all_actions_B).squeeze(dim=2)
 
         return q_values_A, q_values_B, value
         
