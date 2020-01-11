@@ -58,7 +58,7 @@ def load_model(fname, model, model_target, optimizer):
 
 
 def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
-	formatid, player_teams,
+	formatid, player_team_size,
 	alpha, warmup_epochs, train_update_iters,
 	epochs, batch_size, parallel_per_batch, 
 	starting_epoch, eval_epoch_every,
@@ -93,7 +93,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 		# simulate `BATCH_SIZE` * `PARELLEL_PER_BATCH` games parallelized and store result in replay
 		for j in range(batch_size):
 			winner_strings = run_parallel_learning_episode(
-				parallel_per_batch, p1s, p2s, p1net, formatid=formatid, player_teams=player_teams, verbose=False)
+				parallel_per_batch, p1s, p2s, p1net, formatid=formatid, player_team_size=player_team_size, verbose=False)
 
 			for k in range(parallel_per_batch):
 				if(winner_strings[k] == p1s[k].name):
@@ -227,7 +227,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 		# End epoch
 		train_win_rate = float(p1wins) / float(p1wins + p2wins)
 
-		print('Epoch {:3d}:  train win rate: {}'.format(i, train_win_rate), flush=True)
+		print('Epoch {:3d}:  train win rate: {}'.format(i, train_win_rate) + ('  (warm-up)' if (i < warmup_epochs) else ''), flush=True)
 
 		for k in range(parallel_per_batch):
 			p1s[k].wins = 0
@@ -247,7 +247,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 
 			for j in range(batch_size):
 				winner_strings = run_parallel_learning_episode(
-					parallel_per_batch, p1s, p2s, p1net, formatid=formatid, player_teams=player_teams, verbose=False)
+					parallel_per_batch, p1s, p2s, p1net, formatid=formatid, player_team_size=player_team_size, verbose=False)
 
 				for k in range(parallel_per_batch):
 					if(winner_strings[k] == p1s[k].name):
@@ -316,11 +316,12 @@ if __name__ == '__main__':
 	'''
 
 	# parameters
+	# state_embeddings must be divisible by 4 (for MultiHeadAttention heads=4)
 	state_embedding_settings = {
-		'pokemon':     {'embed_dim': 12, 'dict_size': neural_net.MAX_TOK_POKEMON},
-		'type':        {'embed_dim': 6, 'dict_size': neural_net.MAX_TOK_TYPE},
-		'move':        {'embed_dim': 6, 'dict_size': neural_net.MAX_TOK_MOVE},
-		'move_type':   {'embed_dim': 6, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
+		'pokemon':     {'embed_dim': 16, 'dict_size': neural_net.MAX_TOK_POKEMON},
+		'move':        {'embed_dim': 8, 'dict_size': neural_net.MAX_TOK_MOVE},
+		'type':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TYPE},
+		'move_type':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
 		'ability':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ABILITY},
 		'item':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ITEM},
 		'condition':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_CONDITION},
@@ -339,7 +340,7 @@ if __name__ == '__main__':
 
 	# game
 	epochs = 100
-	batch_size = 8
+	batch_size = 4
 	parallel_per_batch = 32
 	eval_epoch_every = 5
 	formatid = 'gen5ou'
@@ -351,20 +352,23 @@ if __name__ == '__main__':
 	# training
 	alpha = 0.05
 	warmup_epochs = 5  # random playing
-	train_update_iters = 50
+	train_update_iters = 30
 	print_obj_every = 10
 
-	# player 1 neural net
-	# initialize target network as p1net
+	# player 1 neural net (initialize target network as p1net)
+	# context is compressed and combined final representation of [player, opponent, field]
+	# 	and used with moves, pokemon to compute Q values (hence don't make too big in relation to embeddings)
 	d_player = 32
-	d_opp = 32
+	d_opp = 16
 	d_field = 16
+	d_context = 16
 
 	p1net = DeePikachu0(
 		state_embedding_settings,
 		d_player=d_player,
 		d_opp=d_opp,
 		d_field=d_field,
+		d_context=d_context,
 		dropout=0.0,
 		attention=True)
 	p1net = p1net.to(DEVICE)
@@ -383,16 +387,18 @@ if __name__ == '__main__':
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(parallel_per_batch)]
 
 	# optimizer 
-	lr = 0.0001 #previously used 0.001, 0.0004 (SAC paper recommendation)
-	weight_decay = 1e-4
+	lr = 0.0004 #previously used 0.001, 0.0004 (SAC paper recommendation)
+	weight_decay = 1e-3
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
-	starting_epoch = 0 # only to be changed by load_state
+	
 
 	# load if intended
 	if load_state:
 		p1net, v_target_net, optimizer, c, loaded_epoch = load_model(
 			load_fstring, model=p1net, model_target=v_target_net, optimizer=optimizer)
 		starting_epoch = loaded_epoch + 1
+	else:
+		starting_epoch = 0 # don't change
 
 	'''
 	###################
@@ -400,15 +406,13 @@ if __name__ == '__main__':
 	###################
 	''' 
 
-	TRAIN_TEAM_SIZE = len(teams_data.teams1v1)
-
-	# sample teams
-	player_teams = teams_data.teams1v1
+	# sample teams: player_team_size in [1 .. 6]
+	player_team_size = 1
 
 	# run training epochs
 	p1s, p2s, optimizer, p1net, replay, results = train_parallel_epochs(
 		p1s=p1s, p2s=p2s, optimizer=optimizer, p1net=p1net, v_target_net=v_target_net, replay=replay,
-		formatid=formatid, player_teams=player_teams,
+		formatid=formatid, player_team_size=player_team_size,
 		alpha=alpha, warmup_epochs=warmup_epochs, train_update_iters=train_update_iters,
 		epochs=epochs, batch_size=batch_size, parallel_per_batch=parallel_per_batch, 
 		starting_epoch=starting_epoch, eval_epoch_every=eval_epoch_every,

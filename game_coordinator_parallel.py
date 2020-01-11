@@ -20,6 +20,7 @@ from state import *
 from data_pokemon import *
 import neural_net
 from neural_net import DeePikachu0
+import teams_data
 
 from training import LearningAgent, int_to_action, action_to_int, SACAgent, ACTION_SPACE_SIZE
 
@@ -245,7 +246,7 @@ def recurse_cat_state(empty_state, list_of_states):
 	return empty_state
 
 
-def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_teams, verbose=True):
+def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_team_size, verbose=True):
 	'''
 	takes in 2 agents and plays K games between them in parallel (one forward pass of network)
 	Assumes p1s are ParallelLearningAgent
@@ -266,15 +267,19 @@ def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_teams, 
 	for k in range(K):
 		sim[k].stdin.write('>start {"formatid":"' + (formatid) + '"}\n') #to add random seed do "seed":"[1234,5678,9012,3456]"
 
+		if player_team_size:
 
-		if player_teams:
-			# sample random team from player_teams
-			team1 = random.choice(player_teams)
-			team2 = random.choice(player_teams)
-			# print('Starting game with team: ', player_teams.index(team))
+			# sample random team of size player_team_size
+			team1 = teams_data.get_random_team(player_team_size)
+			team2 = teams_data.get_random_team(player_team_size)
+
+			# print('Starting game with team: ')
+			# print(team1)
+			# print(team2)
 
 			sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + (team1) + '" }\n')
 			sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + (team2) + '" }\n')
+			
 		else:
 			sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '" }\n')
 			sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '" }\n')			

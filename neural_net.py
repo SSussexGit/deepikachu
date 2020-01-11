@@ -13,6 +13,9 @@ import json
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
+f_activation = F.softplus
+# f_activation = F.relu
+
 # embeddings
 MAX_TOK_POKEMON      = 893
 MAX_TOK_TYPE         = 20
@@ -276,7 +279,7 @@ class FeedForward0(nn.Module):
         self.dropout = nn.Dropout(dropout)
         
     def forward(self, x):
-        return self.w_2(self.dropout(F.relu(self.w_1(x))))
+        return self.w_2(self.dropout(f_activation(self.w_1(x))))
 
 class ResidualFeedForward0(nn.Module):
     '''Residual connection and layer norm'''
@@ -348,8 +351,8 @@ class FieldRepresentation0(nn.Module):
         self.cat_dim += 14 # _time fields
 
         # to reduce rel importance of twoturnmove
-        self.twoturnmovedimred = FeedForward0(d_move, d_move, d_field, dropout=dropout)
-
+        self.twoturnmovedimred = nn.Linear(d_move, d_field)
+        
         # final (after all field effects got concatenated)
         self.final = nn.Sequential(
             FeedForward0(self.cat_dim, self.cat_dim, d_out, dropout=dropout), 
@@ -421,32 +424,29 @@ class MoveRepresentation0(nn.Module):
     '''
     Creates representation of `move_state` 
     '''
-    def __init__(self, d_out, s, dropout=0.0):
+    def __init__(self, s, dropout=0.0):
         super(MoveRepresentation0, self).__init__()
         
         d_move = s['move']['embed_dim']
         d_move_type = s['move_type']['embed_dim']
         d_disabled = s['disabled']['embed_dim']
 
-        self.move =      FeedForward0(d_move, d_move, d_out, dropout=dropout)
-        self.move_type = FeedForward0(d_move_type, d_move_type, d_out, dropout=dropout)
-        self.disabled =  FeedForward0(d_disabled, d_disabled, d_out, dropout=dropout)
-
-        self.d_out = d_out
-        self.cat_dim = 3 * d_out + 2
+        self.cat_dim = d_move + d_move_type + d_disabled + 2
+        self.d_out = d_move  # define this to be out dim
 
         self.final = nn.Sequential(
-            FeedForward0(self.cat_dim, self.cat_dim, d_out, dropout=dropout),
-            ResidualFeedForward0(d_out, d_out, dropout=dropout),
-            ResidualFeedForward0(d_out, d_out, dropout=dropout),
+            FeedForward0(self.cat_dim, self.cat_dim, self.cat_dim, dropout=dropout),
+            ResidualFeedForward0(self.cat_dim, self.cat_dim, dropout=dropout),
+            ResidualFeedForward0(self.cat_dim, self.cat_dim, dropout=dropout),
+            FeedForward0(self.cat_dim, self.cat_dim, self.d_out, dropout=dropout),
         )
 
     def forward(self, x):
        
         h = [
-             self.move(x['moveid']),
-             self.move_type(x['movetype']),
-             self.disabled(x['disabled']),
+             x['moveid'],
+             x['movetype'],
+             x['disabled'],
              x['maxpp'],
              x['pp']
         ]
@@ -463,7 +463,7 @@ class PokemonRepresentation0(nn.Module):
     '''
     Creates representation of `pokemon_state` 
     '''
-    def __init__(self, d_out, s, dropout=0.0, attention=False):
+    def __init__(self, s, dropout=0.0, attention=False):
         super(PokemonRepresentation0, self).__init__()
 
         d_pokemon = s['pokemon']['embed_dim']
@@ -473,26 +473,30 @@ class PokemonRepresentation0(nn.Module):
         d_condition = s['condition']['embed_dim']
         d_alive = s['alive']['embed_dim']
 
-        self.cat_dim = d_out # deep set move representation
+        # shared move representation learned for each move (permutation EQUIvariance)  
+        self.move_embed = MoveRepresentation0(s, dropout=dropout)
+        self.move_dim = self.move_embed.d_out # deep set move representation
+
+        self.move_relate = ResidualSelfAttention0(
+            heads=4, d_model=self.move_dim, dropout=dropout) if attention else nn.Identity()
+
+        self.cat_dim = self.move_dim
         self.cat_dim += d_pokemon + 2 * d_type + d_ability + d_item + d_condition + d_alive # pokemon info
         self.cat_dim += 8 # ints in pokemon state
         self.cat_dim += 1 # imputed remaining health
         self.cat_dim += 7 # boosts
 
-        # shared move representation learned for each move (permutation EQUIvariance)  
-        self.move_embed = MoveRepresentation0(d_out, s, dropout=dropout)
-        self.move_relate = ResidualSelfAttention0(
-            heads=4, d_model=d_out, dropout=dropout) if attention else nn.Identity()
+        self.d_out = d_pokemon # define this to be out dimension
 
         # relationship deep set function (permutation INvariance)      
         self.move_DS = DeepSet0(
-            FeedForward0(d_out, d_out, d_out, dropout=dropout),  # phi
-            FeedForward0(d_out, d_out, d_out, dropout=dropout))  # rho
+            FeedForward0(self.move_dim, self.move_dim, self.move_dim, dropout=dropout),  # phi
+            FeedForward0(self.move_dim, self.move_dim, self.move_dim, dropout=dropout))  # rho
         
         self.final = nn.Sequential(
-            FeedForward0(self.cat_dim, self.cat_dim, d_out, dropout=dropout),
-            ResidualFeedForward0(d_out, d_out, dropout=dropout),
-            ResidualFeedForward0(d_out, d_out, dropout=dropout),
+            FeedForward0(self.cat_dim, self.cat_dim, self.d_out, dropout=dropout),
+            ResidualFeedForward0(self.d_out, self.d_out, dropout=dropout),
+            ResidualFeedForward0(self.d_out, self.d_out, dropout=dropout),
         )
 
     def forward(self, pokemon, boosts):
@@ -556,21 +560,34 @@ class PlayerRepresentation0(nn.Module):
         super(PlayerRepresentation0, self).__init__()
 
         # pokemon representations (shared/permutation equivariant for team pokemon)
-        self.active_pokemon = PokemonRepresentation0(d_out, s, dropout=dropout, attention=attention)
-        self.team_pokemon = PokemonRepresentation0(d_out, s, dropout=dropout, attention=attention)
+        self.active_pokemon = PokemonRepresentation0(s, dropout=dropout, attention=attention)
+        self.team_pokemon = PokemonRepresentation0(s, dropout=dropout, attention=attention)
+
+        # dims
+        assert(self.active_pokemon.d_out == self.team_pokemon.d_out 
+            and self.active_pokemon.move_dim == self.team_pokemon.move_dim)
+        self.pokemon_dim = self.active_pokemon.d_out 
+        self.move_dim = self.active_pokemon.move_dim 
+
         self.team_pokemon_relate = ResidualSelfAttention0(
-            heads=4, d_model=d_out, dropout=dropout) if attention else nn.Identity()
+            heads=4, d_model=self.pokemon_dim, dropout=dropout) if attention else nn.Identity()
 
         # team pokemon relationship deep set function (permutation INvariance)      
         self.team_DS = DeepSet0(
-            FeedForward0(d_out, d_out, d_out, dropout=dropout), # phi
-            FeedForward0(d_out, d_out, d_out, dropout=dropout))  # rho
-
+            nn.Sequential(  # phi
+                FeedForward0(self.pokemon_dim, self.pokemon_dim, self.pokemon_dim, dropout=dropout),
+                ResidualFeedForward0(self.pokemon_dim, self.pokemon_dim, dropout=dropout),
+                ResidualFeedForward0(self.pokemon_dim, self.pokemon_dim, dropout=dropout)),
+             nn.Sequential( # rho
+                FeedForward0(self.pokemon_dim, self.pokemon_dim, self.pokemon_dim, dropout=dropout),
+                ResidualFeedForward0(self.pokemon_dim, self.pokemon_dim, dropout=dropout),
+                ResidualFeedForward0(self.pokemon_dim, self.pokemon_dim, dropout=dropout)))
+            
         # final 
         self.final = nn.Sequential(
-            FeedForward0(2 * d_out, 2 * d_out, d_out, dropout=dropout),
+            FeedForward0(2 * self.pokemon_dim, 2 * self.pokemon_dim, d_out, dropout=dropout),
             ResidualFeedForward0(d_out, d_out, dropout=dropout),
-            # ResidualFeedForward0(d_out, d_out, dropout=dropout),
+            ResidualFeedForward0(d_out, d_out, dropout=dropout)
         )
         
         
@@ -616,45 +633,67 @@ Final net
 
 class DeePikachu0(nn.Module):
     '''Value and Policy Net'''
-    def __init__(self, state_embedding_settings, d_player=128, d_opp=64, d_field=32, dropout=0.0, attention=False):
+    def __init__(self, state_embedding_settings, d_player=128, d_opp=64, d_field=32, d_context=32, dropout=0.0, attention=False):
         super(DeePikachu0, self).__init__()
 
         self.d_player = d_player
         self.d_opp = d_opp
         self.d_field = d_field
 
-        d_hidden = d_player + d_opp + d_field
-        
+        self.d_hidden_in = d_player + d_opp + d_field
+        self.d_hidden_out = d_context
         
         self.state_embedding = State(state_embedding_settings)
 
         # major hidden state 
         self.player = PlayerRepresentation0(d_out=d_player, s=state_embedding_settings, attention=attention, dropout=dropout)
+        self.pokemon_dim = self.player.pokemon_dim
+        self.move_dim = self.player.move_dim
 
         self.opponent = PlayerRepresentation0(d_out=d_opp, s=state_embedding_settings, attention=attention, dropout=dropout)
 
         self.field = FieldRepresentation0(d_out=d_field, s=state_embedding_settings, dropout=dropout)
 
+        self.hidden_reduce = nn.Sequential(
+            FeedForward0(self.d_hidden_in, self.d_hidden_in, self.d_hidden_out, dropout=dropout),
+            ResidualFeedForward0(self.d_hidden_out, self.d_hidden_out, dropout=dropout),
+            ResidualFeedForward0(self.d_hidden_out, self.d_hidden_out, dropout=dropout),
+            FeedForward0(self.d_hidden_out, self.d_hidden_out, self.d_hidden_out, dropout=dropout)
+        )
+
         # value function
-        self.value_function = FeedForward0(d_hidden, d_hidden, 1, dropout=dropout)
+        self.value_function = FeedForward0(self.d_hidden_out, self.d_hidden_out, 1, dropout=dropout)
 
         # Q function (heads 1 and 2) 
-        self.q_combine_moves_hidden = nn.ModuleList([
-            FeedForward0(d_player + d_hidden, d_player + d_hidden, d_player, dropout=dropout),
-            FeedForward0(d_player + d_hidden, d_player + d_hidden, d_player, dropout=dropout)])
+        self.q_combine_moves_context = nn.ModuleList([
+            FeedForward0(
+                self.move_dim + self.d_hidden_out, 
+                self.move_dim + self.d_hidden_out, 
+                self.d_hidden_out, dropout=dropout),
+            FeedForward0(
+                self.move_dim + self.d_hidden_out, 
+                self.move_dim + self.d_hidden_out,
+                self.d_hidden_out, dropout=dropout)])
 
-        self.q_combine_pokemon_hidden = nn.ModuleList([
-            FeedForward0(d_player + d_hidden, d_player + d_hidden, d_player, dropout=dropout),
-            FeedForward0(d_player + d_hidden, d_player + d_hidden, d_player, dropout=dropout)])
+        self.q_combine_pokemon_context= nn.ModuleList([
+            FeedForward0(
+                self.pokemon_dim + self.d_hidden_out, 
+                self.pokemon_dim + self.d_hidden_out, 
+                self.d_hidden_out, dropout=dropout),
+            FeedForward0(
+                self.pokemon_dim + self.d_hidden_out, 
+                self.pokemon_dim + self.d_hidden_out,
+                self.d_hidden_out, dropout=dropout)])
             
         self.q_function = nn.ModuleList([
             nn.Sequential(
-                ResidualSelfAttention0(heads=4, d_model=d_player, dropout=dropout) if attention else nn.Identity(),
-                FeedForward0(d_player, d_player, 1, dropout=dropout),
+                ResidualSelfAttention0(heads=4, d_model=self.d_hidden_out, dropout=dropout) if attention else nn.Identity(),
+                FeedForward0(self.d_hidden_out, self.d_hidden_out, 1, dropout=dropout),
             ),
             nn.Sequential(
-                ResidualSelfAttention0(heads=4, d_model=d_player, dropout=dropout) if attention else nn.Identity(),
-                FeedForward0(d_player, d_player, 1, dropout=dropout),
+                ResidualSelfAttention0(
+                    heads=4, d_model=self.d_hidden_out, dropout=dropout) if attention else nn.Identity(),
+                FeedForward0(self.d_hidden_out, self.d_hidden_out, 1, dropout=dropout),
             )])
         
     def forward(self, x):
@@ -677,30 +716,33 @@ class DeePikachu0(nn.Module):
         # field
         f = self.field(state)
 
+        # combine hidden representations of player, opponent, move into context
+
         hidden = torch.cat([player, opponent, f], dim=1)
+        context = self.hidden_reduce(hidden)
 
         # value function
-        value = self.value_function(hidden).squeeze(dim=1)#.sigmoid() # - apparently sigmoid not done in practice
+        value = self.value_function(context).squeeze(dim=1)#.sigmoid() # - apparently sigmoid not done in practice
 
         # q function: self attend to different action options 
-        moves_and_hidden = torch.cat(
+        moves_and_context = torch.cat(
             [moves_equivariant, 
-             hidden.unsqueeze(1).repeat((1, 4, 1))], 
+             context.unsqueeze(1).repeat((1, 4, 1))], 
         dim=2)
 
-        pokemon_and_hidden = torch.cat(
+        pokemon_and_context = torch.cat(
             [team_pokemon_equivariant, 
-             hidden.unsqueeze(1).repeat((1, 6, 1))], 
+             context.unsqueeze(1).repeat((1, 6, 1))],
         dim=2)
 
         all_actions_A =  torch.cat([
-            self.q_combine_moves_hidden[0](moves_and_hidden), 
-            self.q_combine_pokemon_hidden[0](pokemon_and_hidden)], dim=1)
+            self.q_combine_moves_context[0](moves_and_context), 
+            self.q_combine_pokemon_context[0](pokemon_and_context)], dim=1)
         q_values_A = self.q_function[0](all_actions_A).squeeze(dim=2)#.sigmoid() #- apparently sigmoid not done in practice
 
         all_actions_B =  torch.cat([
-            self.q_combine_moves_hidden[1](moves_and_hidden), 
-            self.q_combine_pokemon_hidden[1](pokemon_and_hidden)], dim=1)
+            self.q_combine_moves_context[1](moves_and_context), 
+            self.q_combine_pokemon_context[1](pokemon_and_context)], dim=1)
         q_values_B = self.q_function[1](all_actions_B).squeeze(dim=2)#.sigmoid() #- apparently sigmoid not done in practice
 
         return q_values_A, q_values_B, value
