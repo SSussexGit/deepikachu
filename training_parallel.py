@@ -44,7 +44,7 @@ def save_model(fname, c, i, model, model_target, optimizer):
     }, SAVE_ROOT + fname + '_' + str(c) + '_' + str(i) + '.pt')
 
 def load_model(fname, model, model_target, optimizer):
-	checkpoint = torch.load(SAVE_ROOT + fname + '.pt')
+	checkpoint = torch.load(SAVE_ROOT + fname + '.pt', map_location = torch.device(DEVICE))
 	c = checkpoint['seed']
 	i = checkpoint['epoch']
 	torch_rng_state = checkpoint['torch_rng_state']
