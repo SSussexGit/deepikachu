@@ -13,8 +13,8 @@ import json
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-f_activation = F.softplus
-# f_activation = F.relu
+# f_activation = F.leaky_relu
+f_activation = F.relu
 
 # embeddings
 MAX_TOK_POKEMON      = 893
