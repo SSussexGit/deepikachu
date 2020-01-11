@@ -705,9 +705,9 @@ class DeePikachu0(nn.Module):
                 nn.Linear(self.d_context, 1), 
             )])
 
-        self.q_function = nn.ModuleList([
-            nn.Identity(),
-            nn.Identity()])
+        # self.q_function = nn.ModuleList([
+        #     nn.Identity(),
+        #     nn.Identity()])
             
         # self.q_function = nn.ModuleList([
         #     nn.Sequential(
@@ -765,12 +765,12 @@ class DeePikachu0(nn.Module):
         all_actions_A =  torch.cat([
             self.q_combine_moves_context[0](moves_and_context), 
             self.q_combine_pokemon_context[0](pokemon_and_context)], dim=1)
-        q_values_A = self.q_function[0](all_actions_A).squeeze(dim=2)
+        q_values_A = all_actions_A.squeeze(dim=2)
 
         all_actions_B =  torch.cat([
             self.q_combine_moves_context[1](moves_and_context), 
             self.q_combine_pokemon_context[1](pokemon_and_context)], dim=1)
-        q_values_B = self.q_function[1](all_actions_B).squeeze(dim=2)
+        q_values_B = all_actions_B.squeeze(dim=2)
 
         return q_values_A, q_values_B, value
         
