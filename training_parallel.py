@@ -30,7 +30,7 @@ DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 MAX_GAME_LEN = 400  # max length is 200 but if you u-turn every turn you move twice per turn
 SAVE_ROOT = 'output/'
 
-print(f'device = {DEVICE}')
+print(f'device = {DEVICE}', flush=True)
 
 def save_model(fname, c, i, model, model_target, optimizer):
     torch.save({
@@ -80,7 +80,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	print(f'p1net d_player = {p1net.d_player}')
 	print(f'p1net d_opponent = {p1net.d_opp}')
 	print(f'p1net d_field = {p1net.d_field}')
-	print(f'p1net d_context = {p1net.d_context}')
+	print(f'p1net d_context = {p1net.d_context}', flush=True)
 
 	mse_loss = nn.MSELoss(reduction='mean')
 
