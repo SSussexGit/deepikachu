@@ -183,7 +183,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 					# v function regression target (min over both q heads:)
 					# 1
 
-					q_A_with_mask_applied = torch.where(valid_actions==1, q_tensor_A_fixed, -torch.tensor(float('inf')))
+					q_A_with_mask_applied = torch.where(valid_actions==1, q_tensor_A_fixed, -torch.tensor(float('inf')).to(DEVICE))
 					
 					valid_q_A = torch.mul(valid_actions, torch.exp(
 						(q_tensor_A_fixed-torch.max(q_A_with_mask_applied, dim=1, keepdim=True)[0]) / alpha))
@@ -352,8 +352,8 @@ if __name__ == '__main__':
 	state_embedding_settings = {
 		'pokemon':     {'embed_dim': 32, 'dict_size': neural_net.MAX_TOK_POKEMON},
 		'move':        {'embed_dim': 16, 'dict_size': neural_net.MAX_TOK_MOVE},
-		'type':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TYPE},
-		'move_type':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
+		'type':        {'embed_dim': 8, 'dict_size': neural_net.MAX_TOK_TYPE},
+		'move_type':   {'embed_dim': 8, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
 		'ability':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ABILITY},
 		'item':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ITEM},
 		'condition':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_CONDITION},
@@ -384,7 +384,7 @@ if __name__ == '__main__':
 	# training
 	alpha = 0.005
 	warmup_epochs = 3  # random playing
-	train_update_iters = 20
+	train_update_iters = 200
 	print_obj_every = 5
 
 	# player 1 neural net (initialize target network as p1net)
@@ -410,7 +410,7 @@ if __name__ == '__main__':
 
 	# experience replay
 	replay_size = 1e6
-	minibatch_size = 20 # number of examples sampled from experience replay in each update
+	minibatch_size = 100 # number of examples sampled from experience replay in each update
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
 	# agents
