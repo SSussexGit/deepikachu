@@ -182,8 +182,11 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 
 					# v function regression target (min over both q heads:)
 					# 1
+
+					q_A_with_mask_applied = torch.where(valid_actions==1, q_tensor_A_fixed, -torch.tensor(float('inf')))
+					
 					valid_q_A = torch.mul(valid_actions, torch.exp(
-						(q_tensor_A_fixed-torch.mean(q_tensor_A_fixed, dim=1, keepdim=True)) / alpha))
+						(q_tensor_A_fixed-torch.max(q_A_with_mask_applied, dim=1, keepdim=True)[0]) / alpha))
 					valid_policy_A = valid_q_A / valid_q_A.sum(dim=1, keepdim=True)
 
 					#actions_tilde = torch.distributions.Categorical(
@@ -253,7 +256,6 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 				if (tt % tt_print ==  tt_print - 1 and verbose):
 					print('V step: {:.8f}'.format(sum(v_losses) / len(v_losses)), end='\n', flush=True)
 					v_losses = []
-
 
 				# Update target network for value function using exponential moving average
 				with torch.no_grad():
@@ -380,10 +382,10 @@ if __name__ == '__main__':
 	verbose = True
 
 	# training
-	alpha = 0.05
+	alpha = 0.005
 	warmup_epochs = 3  # random playing
-	train_update_iters = 200
-	print_obj_every = 20
+	train_update_iters = 20
+	print_obj_every = 5
 
 	# player 1 neural net (initialize target network as p1net)
 	# context is compressed and combined final representation of [player, opponent, field]
@@ -408,7 +410,7 @@ if __name__ == '__main__':
 
 	# experience replay
 	replay_size = 1e6
-	minibatch_size = 200 # number of examples sampled from experience replay in each update
+	minibatch_size = 20 # number of examples sampled from experience replay in each update
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
 	# agents
