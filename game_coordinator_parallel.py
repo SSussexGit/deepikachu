@@ -184,7 +184,9 @@ class ParallelLearningAgent(SACAgent):
 		print()
 		'''
 		is_teampreview = ('teamspec' in valid_actions[0])
-		q_tensor = np.exp((q_tensor-np.mean(q_tensor)) / self.alpha)
+		
+
+		valid_mask = np.ones(10)
 		if(self.warmup):
 			action = random.choice(valid_actions)
 			logp = np.log(1/min(1, len(valid_actions)))
@@ -194,10 +196,17 @@ class ParallelLearningAgent(SACAgent):
 				for i in np.arange(10):
 					if int_to_action(i, teamprev=True) not in valid_actions:
 						q_tensor[i] *= 0
+						valid_mask[i] *= 0
 			else:
 				for i in np.arange(10):
 					if int_to_action(i) not in valid_actions:
 						q_tensor[i] *= 0
+						valid_mask[i] *= 0
+
+			max_q = np.max(q_tensor, initial = -100, where=(valid_mask==1))
+			q_tensor = np.exp((q_tensor-max_q) / self.alpha)
+			q_tensor = np.where(valid_mask==1, q_tensor, 0) 
+			policy_tensor = q_tensor/np.sum(q_tensor)
 
 			policy_tensor = q_tensor/np.sum(q_tensor)
 			#print(policy_tensor)
