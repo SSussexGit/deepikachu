@@ -457,7 +457,6 @@ class MoveRepresentation0(nn.Module):
         )
 
     def forward(self, x):
-       
         h = [
              x['moveid'],
              x['movetype'],

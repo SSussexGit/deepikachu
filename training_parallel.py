@@ -186,19 +186,22 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 						(q_tensor_A_fixed-torch.mean(q_tensor_A_fixed, dim=1, keepdim=True)) / alpha))
 					valid_policy_A = valid_q_A / valid_q_A.sum(dim=1, keepdim=True)
 
-					actions_tilde = torch.distributions.Categorical(
-						probs=valid_policy_A).sample()
+					#actions_tilde = torch.distributions.Categorical(
+					#	probs=valid_policy_A).sample()
 
-					v_target_A = q_tensor_A_fixed[torch.arange(total_traj_len), actions_tilde] \
-                                            - alpha * \
-                                            torch.log(valid_policy_A[torch.arange(
-                                            	total_traj_len), actions_tilde])
+					#instead of a monte carlo estimate compute the expectation in the v_target update
+					v_target_A_terms = (q_tensor_A_fixed - alpha * torch.log(valid_policy_A)) * valid_policy_A
+
+					v_target_A_terms[v_target_A_terms != v_target_A_terms] = 0
+
+					v_target_A = torch.sum(v_target_A_terms, dim=1)
 
 					# 2
-					v_target_B = q_tensor_B_fixed[torch.arange(total_traj_len), actions_tilde] \
-                                            - alpha * \
-                                            torch.log(valid_policy_A[torch.arange(
-                                            	total_traj_len), actions_tilde])
+					v_target_B_terms = (q_tensor_B_fixed - alpha * torch.log(valid_policy_A)) * valid_policy_A
+
+					v_target_B_terms[v_target_B_terms != v_target_B_terms] = 0
+
+					v_target_B = torch.sum(v_target_B_terms, dim=1)
 
 					# min
 					v_target = torch.min(torch.stack(
@@ -363,8 +366,8 @@ if __name__ == '__main__':
 	fstring = 'run1v1'
 
 	load_state = False
-	load_fstring = 'filename'
-
+	load_fstring = 'run3v3_5_29'
+	
 	# game
 	epochs = 100
 	batch_size = 8
@@ -378,9 +381,9 @@ if __name__ == '__main__':
 
 	# training
 	alpha = 0.05
-	warmup_epochs = 5  # random playing
+	warmup_epochs = 3  # random playing
 	train_update_iters = 200
-	print_obj_every = 100
+	print_obj_every = 20
 
 	# player 1 neural net (initialize target network as p1net)
 	# context is compressed and combined final representation of [player, opponent, field]
