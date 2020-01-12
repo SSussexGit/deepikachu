@@ -375,9 +375,9 @@ if __name__ == '__main__':
 	
 	# game
 	epochs = 100
-	batch_size = 2
+	batch_size = 16
 	parallel_per_batch = 64
-	eval_epoch_every = 5
+	eval_epoch_every = 3
 	formatid = 'gen5ou'
 
 	gamma = 0.99
@@ -385,11 +385,11 @@ if __name__ == '__main__':
 	verbose = True
 
 	# training
-	alpha = 0.005
+	alpha = 0.05
 	warmup_epochs = 3  # random playing
 
 	train_update_iters = 100
-	print_obj_every = 20
+	print_obj_every = 33
 
 	# player 1 neural net (initialize target network the same)
 	p1net = SmallDeePikachu(
@@ -414,7 +414,7 @@ if __name__ == '__main__':
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(parallel_per_batch)]
 
 	# optimizer 
-	lr = 0.0004 #previously used 0.001, 0.0004 (SAC paper recommendation)
+	lr = 0.0001 #previously used 0.001, 0.0004 (SAC paper recommendation)
 	weight_decay = 1e-4
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 	

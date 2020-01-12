@@ -29,6 +29,7 @@ from game_coordinator import *
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 MAX_GAME_LEN = 400  # max length is 200 but if you u-turn every turn you move twice per turn
 
+
 class ExperienceReplay:
 	def __init__(self, size=20000, minibatch_size=100, gamma=0.99):
 
@@ -39,7 +40,8 @@ class ExperienceReplay:
 		self.action_replay = np.zeros(self.replay_size, dtype=int)
 		self.adv_replay = np.zeros(self.replay_size, dtype=np.float32)
 		self.rew_replay = np.zeros(self.replay_size, dtype=np.float32)
-		self.rtg_replay = np.zeros(self.replay_size, dtype=np.float32)  # the rewards-to-go
+		self.rtg_replay = np.zeros(
+			self.replay_size, dtype=np.float32)  # the rewards-to-go
 		# save in np because we recompute value a bunch anyway
 		self.val_replay = np.zeros(self.replay_size, dtype=np.float32)
 		self.logp_replay = np.zeros(self.replay_size, dtype=np.float32)  # logp value
@@ -92,7 +94,8 @@ class ExperienceReplay:
 		'''
 		for field in state:
 			if (isinstance(state[field], dict)):
-				state_buffer[field] = self.recurse_store_state(state_buffer[field], state[field], index)
+				state_buffer[field] = self.recurse_store_state(
+					state_buffer[field], state[field], index)
 			else:
 				state_buffer[field][index] = state[field]
 		return state_buffer
@@ -168,7 +171,6 @@ class ParallelLearningAgent(SACAgent):
 		return self.state, valid_actions
 
 	def process_request_receive_tensors(self, valid_actions, q_tensor, value):
-
 		'''
 		This function then receives the output of the neural net and handles it, returning an action
 		'''
@@ -184,9 +186,7 @@ class ParallelLearningAgent(SACAgent):
 		print()
 		'''
 		is_teampreview = ('teamspec' in valid_actions[0])
-		
-
-		valid_mask = np.ones(10)
+		q_tensor = np.exp((q_tensor-np.mean(q_tensor)) / self.alpha)
 		if(self.warmup):
 			action = random.choice(valid_actions)
 			logp = np.log(1/min(1, len(valid_actions)))
@@ -196,17 +196,10 @@ class ParallelLearningAgent(SACAgent):
 				for i in np.arange(10):
 					if int_to_action(i, teamprev=True) not in valid_actions:
 						q_tensor[i] *= 0
-						valid_mask[i] *= 0
 			else:
 				for i in np.arange(10):
 					if int_to_action(i) not in valid_actions:
 						q_tensor[i] *= 0
-						valid_mask[i] *= 0
-
-			max_q = np.max(q_tensor, initial = -100, where=(valid_mask==1))
-			q_tensor = np.exp((q_tensor-max_q) / self.alpha)
-			q_tensor = np.where(valid_mask==1, q_tensor, 0) 
-			policy_tensor = q_tensor/np.sum(q_tensor)
 
 			policy_tensor = q_tensor/np.sum(q_tensor)
 			#print(policy_tensor)
@@ -275,7 +268,8 @@ def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_team_si
 
 	# start all games
 	for k in range(K):
-		sim[k].stdin.write('>start {"formatid":"' + (formatid) + '"}\n') #to add random seed do "seed":"[1234,5678,9012,3456]"
+		# to add random seed do "seed":"[1234,5678,9012,3456]"
+		sim[k].stdin.write('>start {"formatid":"' + (formatid) + '"}\n')
 
 		if player_team_size:
 
@@ -289,13 +283,15 @@ def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_team_si
 			# print(team1)
 			# print(team2)
 
-			sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + (team1) + '" }\n')
-			sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + (team2) + '" }\n')
-			
+			sim[k].stdin.write(
+				'>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + (team1) + '" }\n')
+			sim[k].stdin.write(
+				'>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + (team2) + '" }\n')
+
 		else:
 			sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '" }\n')
-			sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '" }\n')			
-		
+			sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '" }\n')
+
 		sim[k].stdin.flush()
 
 	# game messages
@@ -332,7 +328,7 @@ def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_team_si
 				new_messages[k] += new
 				message_ids[k] = retrieve_message_ids_set(sim[k], new)
 				games[k] += new
-				
+
 				# # DEBUG
 				# for m in new:
 				# 	if not m.message['id'] == 'request':
@@ -420,7 +416,7 @@ def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_team_si
 			# print('---- BEFORE NN')
 			# for j in range(4):
 			# 	pprint.pprint(np_states[0]['player']['active']['moves'][j])
-				
+
 			# batch state processing
 			with torch.no_grad():
 				np_state_cat = recurse_cat_state(create_2D_state(len(running)), np_states)
@@ -472,7 +468,7 @@ if __name__ == '__main__':
 	Usage:  ['tester.py', i] for parallel compute
 	'''
 
-	if(len(sys.argv)>1):
+	if(len(sys.argv) > 1):
 		c = int(sys.argv[1])
 	else:
 		c = 0
@@ -481,21 +477,20 @@ if __name__ == '__main__':
 	np.random.seed(c)
 
 	state_embedding_settings = {
-		'pokemon' :     {'embed_dim' : 32, 'dict_size' : neural_net.MAX_TOK_POKEMON},
-		'type' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_TYPE},
-		'move' :        {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE},
-		'move_type' :   {'embed_dim' : 8, 'dict_size' : neural_net.MAX_TOK_MOVE_TYPE},
-		'ability' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ABILITY},
-		'item' :        {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ITEM},
-		'condition' :   {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_CONDITION},
-		'weather' :     {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_WEATHER},
-		'alive' :       {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_ALIVE},
-		'disabled' :    {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_DISABLED},
-		'spikes' :      {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_SPIKES},
-		'toxicspikes' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_TOXSPIKES},
-		'fieldeffect' : {'embed_dim' : 4, 'dict_size' : neural_net.MAX_TOK_FIELD},
-	}	
-
+		'pokemon':     {'embed_dim': 32, 'dict_size': neural_net.MAX_TOK_POKEMON},
+		'type':        {'embed_dim': 8, 'dict_size': neural_net.MAX_TOK_TYPE},
+		'move':        {'embed_dim': 8, 'dict_size': neural_net.MAX_TOK_MOVE},
+		'move_type':   {'embed_dim': 8, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
+		'ability':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ABILITY},
+		'item':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ITEM},
+		'condition':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_CONDITION},
+		'weather':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_WEATHER},
+		'alive':       {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ALIVE},
+		'disabled':    {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_DISABLED},
+		'spikes':      {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_SPIKES},
+		'toxicspikes': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TOXSPIKES},
+		'fieldeffect': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_FIELD},
+	}
 
 	d_player = 16
 	d_opp = 16

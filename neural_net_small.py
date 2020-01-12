@@ -334,7 +334,7 @@ class PokemonRepresentation1(nn.Module):
 
         # pokemon representation
         if (x['stats']['max_hp'] == 0).sum() != 0:
-            relative_hp = x['hp']
+            relative_hp = x['hp'] * 0.0
         else:
             relative_hp = x['hp'] / x['stats']['max_hp']
 
