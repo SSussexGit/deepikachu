@@ -663,6 +663,7 @@ class DeePikachu0(nn.Module):
         self.d_hidden_in = d_player + d_opp + d_field
         
         self.state_embedding = State(state_embedding_settings)
+        self.state_embedding_settings = state_embedding_settings
 
         # major hidden state 
         self.player = PlayerRepresentation0(d_out=d_player, s=state_embedding_settings, attention=attention, dropout=dropout)

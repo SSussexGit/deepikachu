@@ -18,8 +18,9 @@ from custom_structures import *
 from agents import *
 from state import *
 from data_pokemon import *
-import neural_net
-from neural_net import DeePikachu0
+
+import neural_net_small
+from neural_net_small import SmallDeePikachu
 
 from training import LearningAgent, int_to_action, action_to_int, SACAgent, ACTION_SPACE_SIZE
 
@@ -66,6 +67,10 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	fstring, tt_print=10, verbose=True):
 
 	# info
+	# print(p1net)
+	print(p1net.state_embedding_settings)
+	print(p1net.hidden_layer_settings)
+	print()
 	print(f'gamma = {gamma}')
 	print(f'lam = {lam}')
 	print(f'alpha = {alpha}')
@@ -77,10 +82,6 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	print(f'weight_decay = {optimizer.param_groups[0]["weight_decay"]}')
 	print(f'replay_size = {replay.replay_size}')
 	print(f'replay_minibatch = {replay.minibatch_size}')
-	print(f'p1net d_player = {p1net.d_player}')
-	print(f'p1net d_opponent = {p1net.d_opp}')
-	print(f'p1net d_field = {p1net.d_field}')
-	print(f'p1net d_context = {p1net.d_context}', flush=True)
 
 	mse_loss = nn.MSELoss(reduction='mean')
 
@@ -93,7 +94,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	print(f'epochs = {epochs}')
 	print(f'initialized at epoch = {starting_epoch}')
 	print(f'games per epoch = {batch_size * parallel_per_batch} (batch: {batch_size}, parallel: {parallel_per_batch})')
-	print()
+	print(flush=True)
 
 
 	# simulate `EPOCHS` epochs
@@ -176,6 +177,10 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 					p1net.eval()
 					q_tensor_A_fixed, q_tensor_B_fixed, _ = p1net(states)
 					p1net.train()
+
+					assert(torch.isnan(v_tensor_fixed).sum() == 0)
+					assert(torch.isnan(q_tensor_A_fixed).sum() == 0)
+					assert(torch.isnan(q_tensor_B_fixed).sum() == 0)
 
 					# q function regression target
 					q_target = rews + p1s[0].gamma * (1 - dones) * v_tensor_fixed
@@ -348,19 +353,17 @@ if __name__ == '__main__':
 	# parameters
 	# state_embeddings must be divisible by 4 (for MultiHeadAttention heads=4)
 	state_embedding_settings = {
-		'pokemon':     {'embed_dim': 32, 'dict_size': neural_net.MAX_TOK_POKEMON},
 		'move':        {'embed_dim': 16, 'dict_size': neural_net.MAX_TOK_MOVE},
-		'type':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TYPE},
-		'move_type':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
-		'ability':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ABILITY},
-		'item':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ITEM},
+		'type':        {'embed_dim': 8, 'dict_size': neural_net.MAX_TOK_TYPE},
 		'condition':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_CONDITION},
-		'weather':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_WEATHER},
-		'alive':       {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ALIVE},
-		'disabled':    {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_DISABLED},
-		'spikes':      {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_SPIKES},
-		'toxicspikes': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TOXSPIKES},
-		'fieldeffect': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_FIELD},
+	}
+
+	hidden_layer_settings = {
+		'player' : 32,
+		'opponent' : 32,
+		'context' : 32,
+		'pokemon_hidden' : 32,
+
 	}
 
 	fstring = 'run1v1'
@@ -370,9 +373,9 @@ if __name__ == '__main__':
 	
 	# game
 	epochs = 100
-	batch_size = 8
+	batch_size = 2
 	parallel_per_batch = 64
-	eval_epoch_every = 2
+	eval_epoch_every = 5
 	formatid = 'gen5ou'
 
 	gamma = 0.99
@@ -382,25 +385,16 @@ if __name__ == '__main__':
 	# training
 	alpha = 0.05
 	warmup_epochs = 3  # random playing
-	train_update_iters = 200
+
+	train_update_iters = 100
 	print_obj_every = 20
 
-	# player 1 neural net (initialize target network as p1net)
-	# context is compressed and combined final representation of [player, opponent, field]
-	# 	and used with moves, pokemon to compute Q values (hence don't make too big in relation to embeddings)
-	d_player = 32
-	d_opp = 16
-	d_field = 16
-	d_context = 32
-
-	p1net = DeePikachu0(
-		state_embedding_settings,
-		d_player=d_player,
-		d_opp=d_opp,
-		d_field=d_field,
-		d_context=d_context,
-		dropout=0.0,
-		attention=True)
+	# player 1 neural net (initialize target network the same)
+	p1net = SmallDeePikachu(
+        state_embedding_settings,
+        hidden_layer_settings,
+        dropout=0.0,
+        attention=True)
 	p1net = p1net.to(DEVICE)
 
 	v_target_net = copy.deepcopy(p1net)
@@ -408,7 +402,8 @@ if __name__ == '__main__':
 
 	# experience replay
 	replay_size = 1e6
-	minibatch_size = 200 # number of examples sampled from experience replay in each update
+	minibatch_size = 100 # number of examples sampled from experience replay in each update
+
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
 	# agents
@@ -418,7 +413,7 @@ if __name__ == '__main__':
 
 	# optimizer 
 	lr = 0.0004 #previously used 0.001, 0.0004 (SAC paper recommendation)
-	weight_decay = 1e-5
+	weight_decay = 1e-4
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 	
 
@@ -457,3 +452,23 @@ if __name__ == '__main__':
 	with open('output/' + fstring + '_eval_win_rates_' + str(c) + '.csv', 'w') as myfile:
 		wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
 		wr.writerow(results['eval_win_rates'])
+
+
+
+
+
+	# state_embedding_settings = {
+	# 	'pokemon':     {'embed_dim': 32, 'dict_size': neural_net.MAX_TOK_POKEMON},
+	# 	'move':        {'embed_dim': 16, 'dict_size': neural_net.MAX_TOK_MOVE},
+	# 	'type':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TYPE},
+	# 	'move_type':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
+	# 	'ability':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ABILITY},
+	# 	'item':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ITEM},
+	# 	'condition':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_CONDITION},
+	# 	'weather':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_WEATHER},
+	# 	'alive':       {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ALIVE},
+	# 	'disabled':    {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_DISABLED},
+	# 	'spikes':      {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_SPIKES},
+	# 	'toxicspikes': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TOXSPIKES},
+	# 	'fieldeffect': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_FIELD},
+	# }
