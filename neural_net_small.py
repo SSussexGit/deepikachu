@@ -482,9 +482,9 @@ class SmallDeePikachu(nn.Module):
         for s, param in self.named_parameters():
             if 'embedding' in s:
                 # param.data.uniform_(-1.0, 1.0) 
-                param.data.normal_(mean=0.0, std=0.1) 
+                param.data.normal_(mean=0.0, std=1) 
             else:
-                param.data.normal_(mean=0.0, std=0.1) 
+                param.data.normal_(mean=0.0, std=1) 
         
         
     def forward(self, x):
@@ -539,7 +539,7 @@ class SmallDeePikachu(nn.Module):
         # print('Q B: ', q_values_B)
         # print('V  : ', value)
 
-        return q_values_A, q_values_B, value
+        return torch.sigmoid(q_values_A), q_values_B, value
         
 
 

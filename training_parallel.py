@@ -221,7 +221,6 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 				optimizer.zero_grad()
 				q_tensor_A, _, _ = p1net(states)
 				q_action_taken_A = q_tensor_A[torch.arange(total_traj_len), actions]
-
 				loss = mse_loss(q_action_taken_A, q_target)
 				loss.backward()
 				optimizer.step()
@@ -229,10 +228,10 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 				q_losses_A.append(loss.detach().item())
 				if (tt % tt_print == tt_print - 1 and verbose):
 					print('{:3d}'.format(tt), end='\t')
-					print('Q step A: {:.8f}'.format(sum(q_losses_A) / len(q_losses_A)), end='\t')
+					print('Q step A: {:.8f}'.format(sum(q_losses_A) / len(q_losses_A)), end='\n')
 					q_losses_A = []
 
-
+				'''
 				# Q step B
 				optimizer.zero_grad()
 				_, q_tensor_B, _ = p1net(states)
@@ -242,13 +241,14 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 				loss = mse_loss(q_action_taken_B, q_target)
 				loss.backward()
 				optimizer.step()
-
+				
 				q_losses_B.append(loss.detach().item())
 				if (tt % tt_print == tt_print - 1 and verbose):
 					print('Q step B: {:.8f}'.format(sum(q_losses_B) / len(q_losses_B)), end='\t')
 					q_losses_B = []
 
 				# V step
+				
 				optimizer.zero_grad()
 				_, _, value_tensor = p1net(states)
 
@@ -268,7 +268,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 					for param, param_target in zip(p1net.parameters(), v_target_net.parameters()):
 						param_target.data.copy_(
 							polyak * param_target.data + (1 - polyak) * param.data)
-
+				'''
 		# do an eval epoch
 		if (i % eval_epoch_every == eval_epoch_every - 1):
 
@@ -367,14 +367,14 @@ if __name__ == '__main__':
 
 	}
 
-	fstring = 'run3v3'
+	fstring = 'run1v1'
 
 	load_state = False
 	load_fstring = 'run3v3_5_29'
 	
 	# game
 	epochs = 100
-	batch_size = 8
+	batch_size = 16
 	parallel_per_batch = 64
 	eval_epoch_every = 3
 	formatid = 'gen5ou'
@@ -387,7 +387,7 @@ if __name__ == '__main__':
 	alpha = 0.05
 	warmup_epochs = 3  # random playing
 
-	train_update_iters = 50
+	train_update_iters = 100
 	print_obj_every = 33
 
 	# player 1 neural net (initialize target network the same)
@@ -403,7 +403,7 @@ if __name__ == '__main__':
 
 	# experience replay
 	replay_size = 1e5
-	minibatch_size = 100 # number of examples sampled from experience replay in each update
+	minibatch_size = 250 # number of examples sampled from experience replay in each update
 
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
@@ -413,7 +413,7 @@ if __name__ == '__main__':
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(parallel_per_batch)]
 
 	# optimizer 
-	lr = 0.0001 #previously used 0.001, 0.0004 (SAC paper recommendation)
+	lr = 0.01 #previously used 0.001, 0.0004 (SAC paper recommendation)
 	weight_decay = 1e-4
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 	
