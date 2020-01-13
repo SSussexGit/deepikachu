@@ -71,6 +71,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	print(p1net.state_embedding_settings)
 	print(p1net.hidden_layer_settings)
 	print()
+	print(f'activation = {p1net.f_activation}')
 	print(f'gamma = {gamma}')
 	print(f'lam = {lam}')
 	print(f'alpha = {alpha}')
@@ -368,14 +369,14 @@ if __name__ == '__main__':
 
 	}
 
-	fstring = 'run1v1'
+	fstring = 'run3v3'
 
 	load_state = False
 	load_fstring = 'run3v3_5_29'
 	
 	# game
 	epochs = 100
-	batch_size = 16
+	batch_size = 8
 	parallel_per_batch = 64
 	eval_epoch_every = 3
 	formatid = 'gen5ou'
@@ -403,7 +404,7 @@ if __name__ == '__main__':
 	v_target_net.to(DEVICE)
 
 	# experience replay
-	replay_size = 1e6
+	replay_size = 1e5
 	minibatch_size = 100 # number of examples sampled from experience replay in each update
 
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
@@ -434,7 +435,7 @@ if __name__ == '__main__':
 	''' 
 
 	# sample teams: player_team_size in [1 .. 6]
-	player_team_size = 1
+	player_team_size = 3
 
 	# run training epochs
 	p1s, p2s, optimizer, p1net, replay, results = train_parallel_epochs(

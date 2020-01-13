@@ -13,10 +13,9 @@ import json
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-f_activation = nn.LeakyReLU()
+# f_activation = nn.LeakyReLU()
+f_activation = nn.Sigmoid()
 # f_activation = nn.ReLU()
-
-print(f'nonlinearity = {f_activation}')
 
 # embeddings
 MAX_TOK_POKEMON      = 893
@@ -95,11 +94,6 @@ class State1(torch.nn.Module):
         self.type_embedding = SingleEmbedding1(settings['type'])
         self.move_embedding = SingleEmbedding1(settings['move'])
         self.condition_embedding = SingleEmbedding1(settings['condition'])
-
-        # random initialization
-        # for _, param in self.named_parameters():
-        #     # param.data.normal_(mean=0.0, std=0.001) 
-        #     param.data.uniform_(-1.0, 1.0) 
 
     def __recursive_replace(self, x):
 
@@ -432,6 +426,8 @@ class SmallDeePikachu(nn.Module):
     def __init__(self, state_embedding_settings, hidden_layer_settings, dropout=0.0, attention=False):
         super(SmallDeePikachu, self).__init__()
 
+        self.f_activation = f_activation
+
         self.hidden_layer_settings = hidden_layer_settings
         self.d_player = hidden_layer_settings['player']
         self.d_opp = hidden_layer_settings['opponent']
@@ -481,6 +477,14 @@ class SmallDeePikachu(nn.Module):
                           self.d_context), f_activation,
                 nn.Linear(self.d_context, 1), 
             )])
+
+        # random init
+        for s, param in self.named_parameters():
+            if 'embedding' in s:
+                # param.data.uniform_(-1.0, 1.0) 
+                param.data.normal_(mean=0.0, std=1.0) 
+            else:
+                param.data.normal_(mean=0.0, std=1.0) 
         
         
     def forward(self, x):
@@ -529,6 +533,11 @@ class SmallDeePikachu(nn.Module):
             self.q_combine_moves_context[1](moves_and_context), 
             self.q_combine_pokemon_context[1](pokemon_and_context)], dim=1)
         q_values_B = all_actions_B.squeeze(dim=2)
+
+        # print('End of nn forward pass: ')
+        # print('Q A: ', q_values_A)
+        # print('Q B: ', q_values_B)
+        # print('V  : ', value)
 
         return q_values_A, q_values_B, value
         
