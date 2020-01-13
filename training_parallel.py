@@ -387,7 +387,7 @@ if __name__ == '__main__':
 	alpha = 0.05
 	warmup_epochs = 3  # random playing
 
-	train_update_iters = 100
+	train_update_iters = 50
 	print_obj_every = 33
 
 	# player 1 neural net (initialize target network the same)
@@ -433,7 +433,7 @@ if __name__ == '__main__':
 	''' 
 
 	# sample teams: player_team_size in [1 .. 6]
-	player_team_size = 3
+	player_team_size = 1
 
 	# run training epochs
 	p1s, p2s, optimizer, p1net, replay, results = train_parallel_epochs(
