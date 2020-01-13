@@ -158,7 +158,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 				states, states2, actions, advs, rtgs, logps, valid_actions, rews, dones = replay.get()
 				actions = torch.tensor(actions, dtype=torch.long)
 				advs = torch.tensor(advs, dtype=torch.float)
-				rtgs = torch.tensor(rtgs, dtype=torch.float)
+				rtgs = torch.tensor(rtgs, dtype=torch.float).to(DEVICE)
 				logps = torch.tensor(logps, dtype=torch.float)
 				valid_actions = torch.tensor(valid_actions, dtype=torch.float).to(DEVICE)
 				rews = torch.tensor(rews, dtype=torch.float).to(DEVICE)
