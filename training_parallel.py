@@ -111,6 +111,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 		else:
 			for k in range(parallel_per_batch):
 				p1s[k].warmup = True
+				p1s[k].alpha = max(0.9*p1s[k].alpha, 0.05)
 
 		# simulate `BATCH_SIZE` * `PARELLEL_PER_BATCH` games parallelized and store result in replay
 		for j in range(batch_size):
@@ -140,6 +141,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 
 		for k in range(parallel_per_batch):
 			p1s[k].wins = 0
+
 		train_win_array.append(train_win_rate)
 
 		# perform updates on neural net
@@ -189,27 +191,14 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 					# v function regression target (min over both q heads:)
 					# 1
 
-					valid_q_A = torch.mul(valid_actions, torch.exp(
-						(q_tensor_A_fixed-torch.mean(q_tensor_A_fixed, dim=1, keepdim=True)) / alpha))
-					valid_policy_A = valid_q_A / valid_q_A.sum(dim=1, keepdim=True)
+					masked_q_A = torch.mul(valid_actions, q_tensor_A_fixed)
 
-					#actions_tilde = torch.distributions.Categorical(
-					#	probs=valid_policy_A).sample()
-
-					#instead of a monte carlo estimate compute the expectation in the v_target update
-					v_target_A_terms = (q_tensor_A_fixed - alpha * torch.log(valid_policy_A)) * valid_policy_A
-
-					v_target_A_terms[v_target_A_terms != v_target_A_terms] = 0
-
-					v_target_A = torch.sum(v_target_A_terms, dim=1)
+					v_target_A = torch.max(masked_q_A, dim=1)[0]
 
 					# 2
-					v_target_B_terms = (q_tensor_B_fixed - alpha * torch.log(valid_policy_A)) * valid_policy_A
+					masked_q_B = torch.mul(valid_actions, q_tensor_B_fixed)
 
-					v_target_B_terms[v_target_B_terms != v_target_B_terms] = 0
-
-					v_target_B = torch.sum(v_target_B_terms, dim=1)
-
+					v_target_B = torch.max(masked_q_B, dim=1)[0]
 					# min
 					v_target = torch.min(torch.stack(
 						[v_target_A, v_target_B], dim=1), dim=1)[0]
@@ -384,10 +373,10 @@ if __name__ == '__main__':
 	verbose = True
 
 	# training
-	alpha = 0.05
-	warmup_epochs = 3  # random playing
+	alpha = 0.2
+	warmup_epochs = 0  # random playing
 
-	train_update_iters = 50
+	train_update_iters = 100
 	print_obj_every = 33
 
 	# player 1 neural net (initialize target network the same)
@@ -413,7 +402,7 @@ if __name__ == '__main__':
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(parallel_per_batch)]
 
 	# optimizer 
-	lr = 0.0001 #previously used 0.001, 0.0004 (SAC paper recommendation)
+	lr = 0.001 #previously used 0.001, 0.0004 (SAC paper recommendation)
 	weight_decay = 1e-4
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 	

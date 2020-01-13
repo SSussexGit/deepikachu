@@ -186,47 +186,31 @@ class ParallelLearningAgent(SACAgent):
 		print()
 		'''
 		is_teampreview = ('teamspec' in valid_actions[0])
-		q_tensor = np.exp((q_tensor-np.mean(q_tensor)) / self.alpha)
 		if(self.warmup):
 			action = random.choice(valid_actions)
 			logp = np.log(1/min(1, len(valid_actions)))
 
 		else:
+			valid_actions_np = np.ones((10))
 			if is_teampreview:
 				for i in np.arange(10):
 					if int_to_action(i, teamprev=True) not in valid_actions:
-						q_tensor[i] *= 0
+						q_tensor[i] = -np.inf
+						valid_actions_np[i] = 0
 			else:
 				for i in np.arange(10):
 					if int_to_action(i) not in valid_actions:
-						q_tensor[i] *= 0
+						q_tensor[i] = -np.inf
+						valid_actions_np[i] = 0
 
-			policy_tensor = q_tensor/np.sum(q_tensor)
-			#print(policy_tensor)
-			#for debugging if we get nans
-			if(True in np.isnan(policy_tensor)):
-				print("valid actions:" + str(valid_actions))
-				print("value:")
-				print(value)
-				print("q tensor:")
-				print(q_tensor)
-				print("policy tensor:")
-				print(policy_tensor)
-				ValueError("Nans found in policy tensor")
 
-			#check if we're at teampreview and sample action accordingly. if at teampreview teamspec in first option
-			if is_teampreview:
-				if(self.evalmode):
-					action = int_to_action(np.argmax(policy_tensor), teamprev=True)
-				else:
-					action = int_to_action(np.random.choice(
-						np.arange(10), p=policy_tensor), teamprev=True)
+			if((not self.evalmode) and (np.random.binomial(1, self.alpha) == 1)):
+				action_to_choose = np.random.choice(10, p=valid_actions_np/np.sum(valid_actions_np))
 			else:
-				if(self.evalmode):
-					action = int_to_action(np.argmax(policy_tensor), teamprev=False)
-				else:
-					action = int_to_action(np.random.choice(
-						np.arange(10), p=policy_tensor), teamprev=False)
+				action_to_choose = np.argmax(q_tensor)
+
+			
+			action = int_to_action(action_to_choose, teamprev=is_teampreview)
 
 			#save logpaction in buffer (not really needed since it gets recomputed)
 			logp = np.log(1/min(1, len(valid_actions)))
