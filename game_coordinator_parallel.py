@@ -55,7 +55,7 @@ class ExperienceReplay:
 
 		self.minibatch_size = minibatch_size
 
-	def store_in_replay(self, state, state2, action, logp, valid_actions, rew, done):
+	def store_in_replay(self, state, state2, action, logp, valid_actions, rew, done, rtg):
 		'''
 		Stores everything in the replay and increments the pointer
 		'''
@@ -73,6 +73,8 @@ class ExperienceReplay:
 		self.rew_replay[self.ptr] = rew
 
 		self.done_replay[self.ptr] = done
+
+		self.rtg_replay[self.ptr] = rtg
 
 		#self.valid_actions[self.ptr]
 		for action_index in range(ACTION_SPACE_SIZE):
@@ -122,7 +124,7 @@ class ExperienceReplay:
 			state2_i = self.recurse_unfold_state(
 				copy.deepcopy(default_state), states2, i)
 			self.store_in_replay(
-				state_i, state2_i, actions[i], logps[i], valid_actions[i], rews[i], dones[i])
+				state_i, state2_i, actions[i], logps[i], valid_actions[i], rews[i], dones[i], rtgs[i])
 
 	def recurse_index_state(self, state_replay, idxs):
 	    '''

@@ -184,7 +184,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 					assert(torch.isnan(q_tensor_B_fixed).sum() == 0)
 
 					# q function regression target
-					q_target = rews + p1s[0].gamma * (1 - dones) * v_tensor_fixed
+					q_target = rtgs
 
 					# v function regression target (min over both q heads:)
 					# 1
@@ -379,7 +379,7 @@ if __name__ == '__main__':
 	eval_epoch_every = 3
 	formatid = 'gen5ou'
 
-	gamma = 0.99
+	gamma = 1
 	lam = 0.95
 	verbose = True
 
