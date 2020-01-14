@@ -255,7 +255,7 @@ class DeepSet2(nn.Module):
         if mask is not None:
             alive_ctr = mask.sum(dim=1)
             # o/w breaks at the end of game (when no alive poks) 
-            alive_ctr = alive_ctr.masked_fill(alive_ctr == 0, 1.0).unsqueeze(1).unsqueeze(2)
+            alive_ctr = alive_ctr.masked_fill(alive_ctr == 0, 1.0).unsqueeze(1).unsqueeze(2).float()
             mask = mask.unsqueeze(2)
             rep = rep.masked_fill(mask == 0, 0.0) / alive_ctr
         
