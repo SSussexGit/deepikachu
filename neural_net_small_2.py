@@ -18,8 +18,15 @@ f_activation = nn.LeakyReLU()
 def make_f_activation():
     return copy.deepcopy(nn.LeakyReLU())
 
+class Identity(torch.nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
+       
+    def forward(self, x):    
+        return x
+
 def make_identity():
-    return (lambda x: x)
+    return Identity()
 
 # embeddings
 MAX_TOK_POKEMON      = 893
