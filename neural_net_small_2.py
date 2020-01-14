@@ -18,7 +18,8 @@ f_activation = nn.LeakyReLU()
 def make_f_activation():
     return copy.deepcopy(nn.LeakyReLU())
 
-
+def make_identity():
+    return (lambda x: x)
 
 # embeddings
 MAX_TOK_POKEMON      = 893
@@ -280,8 +281,8 @@ class MoveRepresentation2(nn.Module):
 
         self.final = nn.Sequential(
             nn.Linear(self.cat_dim, self.d_out), make_f_activation(),
-            nn.Linear(self.d_out, self.d_out), nn.LayerNorm(self.d_out) if layer_norm else nn.Identity()
-        ) if not move_identity else nn.Identity()
+            nn.Linear(self.d_out, self.d_out), nn.LayerNorm(self.d_out) if layer_norm else make_identity()
+        ) if not move_identity else make_identity()
 
 
     def forward(self, x):
@@ -311,7 +312,7 @@ class PokemonRepresentation2(nn.Module):
         self.move_embed = MoveRepresentation2(s, move_identity=move_identity, layer_norm=layer_norm, dropout=dropout)
         self.d_move = 2 * self.move_embed.d_out # deep set move representation
 
-        self.move_relate = SelfAttention2(heads=4, d_model=self.move_embed.d_out, dropout=dropout) if attention else nn.Identity()
+        self.move_relate = SelfAttention2(heads=4, d_model=self.move_embed.d_out, dropout=dropout) if attention else make_identity()
 
         self.cat_dim = self.d_move # collective move representation
         self.cat_dim += 2 * self.d_type + self.d_condition  # pokemon info
@@ -330,7 +331,7 @@ class PokemonRepresentation2(nn.Module):
         
         self.final = nn.Sequential(
             nn.Linear(self.cat_dim, self.cat_dim), make_f_activation(),
-            nn.Linear(self.cat_dim, self.d_out), nn.LayerNorm(self.d_out) if layer_norm else nn.Identity(), 
+            nn.Linear(self.cat_dim, self.d_out), nn.LayerNorm(self.d_out) if layer_norm else make_identity(), 
         )
 
 
@@ -395,7 +396,7 @@ class PlayerRepresentation2(nn.Module):
         self.d_out = d_out
         self.cat_dim = d_pokemon + 2 * d_pokemon # active + team
 
-        self.team_pokemon_relate = SelfAttention2(heads=4, d_model=d_pokemon, dropout=dropout) if attention else nn.Identity()
+        self.team_pokemon_relate = SelfAttention2(heads=4, d_model=d_pokemon, dropout=dropout) if attention else make_identity()
 
         # team pokemon relationship deep set function (permutation INvariance)    
         self.team_DS = DeepSet2(
@@ -409,7 +410,7 @@ class PlayerRepresentation2(nn.Module):
         # final         
         self.final = nn.Sequential(
             nn.Linear(self.cat_dim, self.cat_dim), make_f_activation(),
-            nn.Linear(self.cat_dim, self.d_out), nn.LayerNorm(self.d_out) if layer_norm else nn.Identity()
+            nn.Linear(self.cat_dim, self.d_out), nn.LayerNorm(self.d_out) if layer_norm else make_identity()
         )
 
         
@@ -480,7 +481,7 @@ class SmallDeePikachu2(nn.Module):
 
         # self.hidden_reduce = nn.Sequential(
         #     nn.Linear(self.d_hidden_in, self.d_hidden_in), make_f_activation(),
-        #     nn.Linear(self.d_hidden_in, self.d_context), nn.LayerNorm(self.d_context) if layer_norm else nn.Identity(),
+        #     nn.Linear(self.d_hidden_in, self.d_context), nn.LayerNorm(self.d_context) if layer_norm else make_identity(),
         # )
         self.d_context = self.d_hidden_in # skip this for now
 

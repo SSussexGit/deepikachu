@@ -380,7 +380,7 @@ if __name__ == '__main__':
 	# game
 	epochs = 100
 	batch_size = 16
-	parallel_per_batch = 32
+	parallel_per_batch = 64
 	eval_epoch_every = 3
 	formatid = 'gen5ou'
 
@@ -420,7 +420,7 @@ if __name__ == '__main__':
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(parallel_per_batch)]
 
 	# optimizer 
-	lr = 0.001 #previously used 0.001, 0.0004 (SAC paper recommendation)
+	lr = 0.0004 #previously used 0.001, 0.0004 (SAC paper recommendation)
 	weight_decay = 1e-5
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 	
