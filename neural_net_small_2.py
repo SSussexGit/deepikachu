@@ -193,7 +193,7 @@ class MultiHeadedAttention(nn.Module):
             # mask value sequence dim of dead pokemon with 0
             # that way, when value matrix is dotted with attention matrix, resulting vectors for dead pokemon are 0 since no bias for W_o 
             
-            # not doing that for now since option is masked anyway (not 100 sure its correct)
+            # not doing that for now since option is masked anyway (not 100 sure itd be correct)
             # value = value.masked_fill(mask.unsqueeze(1).unsqueeze(3) == 0, 0.0) 
 
         p_attn = F.softmax(scores, dim = -1)
@@ -253,15 +253,18 @@ class DeepSet2(nn.Module):
         self.phi = phi
         self.rho = rho
 
-    def forward(self, x, mask=None):
+    def forward(self, x, mask_=None):
         assert(x.dim() == 3) # batch, setsize, d_in       
         rep = self.phi(x)
 
         # mask dead pokemon (mask is (batchsize, setsize))
         # divide by # pok alive to be invariant to # alive
-        if mask is not None:
+        if mask_ is not None:
+            # mask pokemon as `dead`
+            mask = copy.deepcopy(mask_).to(DEVICE)
+            mask[:, 0] = 0
             alive_ctr = mask.sum(dim=1)
-            # o/w breaks at the end of game (when no alive poks) 
+            # ctr>= 1 o/w breaks at the end of game (when no alive poks) 
             alive_ctr = alive_ctr.masked_fill(alive_ctr == 0, 1.0).unsqueeze(1).unsqueeze(2).float()
             mask = mask.unsqueeze(2)
             rep = rep.masked_fill(mask == 0, 0.0) / alive_ctr
@@ -303,7 +306,7 @@ class MoveRepresentation2(nn.Module):
 
         # final
         h = self.final(h)
-        return h
+        return h, x['movetype']
 
 class PokemonRepresentation2(nn.Module):
     '''
@@ -316,10 +319,10 @@ class PokemonRepresentation2(nn.Module):
         self.d_condition = s['condition']['embed_dim']
 
         # shared move representation learned for each move (permutation EQUIvariance)  
-        self.move_embed = MoveRepresentation2(s, move_identity=move_identity, layer_norm=layer_norm, dropout=dropout)
-        self.d_move = 2 * self.move_embed.d_out # deep set move representation
+        self.move_representation = MoveRepresentation2(s, move_identity=move_identity, layer_norm=layer_norm, dropout=dropout)
+        self.d_move = 2 * self.move_representation.d_out  # deep set move representation
 
-        self.move_relate = SelfAttention2(heads=4, d_model=self.move_embed.d_out, dropout=dropout) if attention else make_identity()
+        self.move_relate = SelfAttention2(heads=4, d_model=self.move_representation.d_out, dropout=dropout) if attention else make_identity()
 
         self.cat_dim = self.d_move # collective move representation
         self.cat_dim += 2 * self.d_type + self.d_condition  # pokemon info
@@ -347,7 +350,14 @@ class PokemonRepresentation2(nn.Module):
         x = pokemon
         
         # order equivariant move representations
-        moves = torch.stack([self.move_embed(x['moves'][i]) for i in range(4)], dim=1) # bs, moves, d
+        moves = []
+        moves_types = []
+        for i in range(4):
+            move_rep, move_type = self.move_representation(x['moves'][i])
+            moves.append(move_rep)
+            moves_types.append(move_type)
+        moves = torch.stack(moves, dim=1)  # bs, moves, d
+        moves_types_equivariant = torch.stack(moves_types, dim=1)  # bs, moves, d
         
         # cat representation with attention representation
         moves_equivariant = torch.cat(
@@ -379,10 +389,19 @@ class PokemonRepresentation2(nn.Module):
         assert(h.shape[1] == self.cat_dim)
 
         # final
-        h = self.final(h)
+        pokemon_invariant = self.final(h)
+
+        pokemon_types = (x['pokemontype1'], x['pokemontype2'])
+        pokemon_stats = torch.cat([
+            x['stats']['atk'],
+            x['stats']['def'],
+            x['stats']['spa'],
+            x['stats']['spd'],
+            x['stats']['spe'],
+            relative_hp], dim=1)
 
         # return (hidden representation, equivariant move representations (for policy))
-        return h, moves_equivariant
+        return pokemon_invariant, moves_equivariant, moves_types_equivariant, pokemon_stats, pokemon_types
 
 class PlayerRepresentation2(nn.Module):
     '''
@@ -425,12 +444,26 @@ class PlayerRepresentation2(nn.Module):
     def forward(self, x):
 
         # active pokemon representation
-        # (invariant, equivariant)
-        active_pokemon, moves_equivariant = self.active_pokemon(x['active'])
+        (active_invariant, 
+            active_moves_equivariant, 
+            active_moves_types_equivariant, 
+            active_stats, 
+            active_types) = \
+            self.active_pokemon(x['active'])
 
-        # team pokemon representation (equivariant move reps are discarded for individual pokemon reps)
-        team_pokemon = torch.stack([self.team_pokemon(x['team'][i])[0] for i in range(6)], dim=1)
-
+        # team pokemon representation 
+        team_pokemon = []
+        team_pokemon_types1 = []
+        team_pokemon_types2 = []
+        for i in range(6):
+            poke_rep, _, _, _, poke_types = self.team_pokemon(x['team'][i])
+            team_pokemon.append(poke_rep)
+            team_pokemon_types1.append(poke_types[0])
+            team_pokemon_types2.append(poke_types[1])
+        team_pokemon = torch.stack(team_pokemon, dim=1)  # bs, pokemon, d
+        team_pokemon_types1 = torch.stack(team_pokemon_types1, dim=1)  # bs, pokemon, d
+        team_pokemon_types2 = torch.stack(team_pokemon_types2, dim=1)  # bs, pokemon, d
+        
         # get alive status for masking in attention and deep set
         self.team_alive = torch.cat([x['team'][i]['alive'] for i in range(6)], dim=1)
         self.team_alive = self.team_alive.long().to(DEVICE)
@@ -443,10 +476,9 @@ class PlayerRepresentation2(nn.Module):
         team = self.team_DS(team_pokemon_equivariant, self.team_alive)
 
         # combine into player representation
-        player = self.final(torch.cat([active_pokemon, team], dim=1))
+        player = self.final(torch.cat([active_invariant, team], dim=1))
 
-        # return (player, moves_equivariant, team_pokemon_equivariant)
-        return player, moves_equivariant, team_pokemon_equivariant
+        return player, active_moves_equivariant, active_moves_types_equivariant, team_pokemon_equivariant, active_stats, active_types, (team_pokemon_types1, team_pokemon_types2)
 
 
 
@@ -467,10 +499,19 @@ class SmallDeePikachu2(nn.Module):
         self.hidden_layer_settings = hidden_layer_settings
         self.d_player = hidden_layer_settings['player']
         self.d_opp = hidden_layer_settings['opponent']
-        # self.d_context = hidden_layer_settings['context']
+        self.d_context = hidden_layer_settings['context']
 
-        self.d_hidden_in = self.d_player + self.d_opp
-        
+        # similarity metrics
+        self.d_type = state_embedding_settings['type']['embed_dim']
+        self.similarity_heads = 2 # this will result in h * h similarity metrics per type
+        self.d_similarity = self.d_type // self.similarity_heads  # arbitrary
+        self.d_similarity_out = self.similarity_heads * self.similarity_heads
+        assert(self.d_type % self.similarity_heads == 0)
+
+        # (player) + (opponent) + (similarity of active types) + (stats of both players active)
+        self.d_hidden_in = self.d_player + self.d_opp + \
+            2 * self.d_similarity_out + 12
+
         self.state_embedding = State2(state_embedding_settings)
         self.state_embedding_settings = state_embedding_settings
 
@@ -486,11 +527,17 @@ class SmallDeePikachu2(nn.Module):
         self.d_move = self.player.d_move
         self.d_pokemon = self.player.d_pokemon
 
-        # self.hidden_reduce = nn.Sequential(
-        #     nn.Linear(self.d_hidden_in, self.d_hidden_in), make_f_activation(),
-        #     nn.Linear(self.d_hidden_in, self.d_context), nn.LayerNorm(self.d_context) if layer_norm else make_identity(),
-        # )
-        self.d_context = self.d_hidden_in # skip this for now
+        self.hidden_reduce = nn.Sequential(
+            nn.Linear(self.d_hidden_in, self.d_hidden_in), make_f_activation(),
+            nn.Linear(self.d_hidden_in, self.d_context), nn.LayerNorm(self.d_context) if layer_norm else make_identity(),
+        )
+       
+
+        # similarity metrics
+        self.W_move_p = nn.Linear(self.d_type, self.similarity_heads * self.d_similarity) # p move - opp active
+        self.W_move_opp = nn.Linear(self.d_type, self.similarity_heads * self.d_similarity) 
+        self.W_team_p = nn.Linear(self.d_type, self.similarity_heads * self.d_similarity) # p team - opp active
+        self.W_team_opp = nn.Linear(self.d_type, self.similarity_heads * self.d_similarity)
 
         # value function
         self.value_function = nn.Sequential(
@@ -501,21 +548,21 @@ class SmallDeePikachu2(nn.Module):
         # Q function (heads 1 and 2) 
         self.q_combine_moves_context = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(self.d_move + self.d_context, self.d_context), make_f_activation(),
+                nn.Linear(self.d_move + self.d_context + 2 * self.d_similarity_out, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1), 
             ),
             nn.Sequential(
-                nn.Linear(self.d_move + self.d_context, self.d_context), make_f_activation(),
+                nn.Linear(self.d_move + self.d_context + 2 * self.d_similarity_out, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1),  
             )])
         
         self.q_combine_pokemon_context = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(self.d_pokemon + self.d_context, self.d_context), make_f_activation(),
+                nn.Linear(self.d_pokemon + self.d_context + 2 * self.d_similarity_out, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1), 
             ),
             nn.Sequential(
-                nn.Linear(self.d_pokemon + self.d_context, self.d_context), make_f_activation(),
+                nn.Linear(self.d_pokemon + self.d_context + 2 * self.d_similarity_out, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1), 
             )])
 
@@ -532,7 +579,14 @@ class SmallDeePikachu2(nn.Module):
                 else:
                     nn.init.xavier_uniform_(param, 
                         gain=torch.nn.init.calculate_gain('leaky_relu'))
-                    
+
+    def __dot_similarity(self, k, v):
+        # compute batched dot product and rescale heads
+        batch_size = k.shape[0]
+        out = torch.matmul(k, v.transpose(-2, -1)) \
+            / math.sqrt(self.d_similarity)
+        return out.view( batch_size, -1, 
+            self.similarity_heads * self.similarity_heads).contiguous()
 
         
     def forward(self, x):
@@ -541,27 +595,79 @@ class SmallDeePikachu2(nn.Module):
         state = self.state_embedding(state)
 
         # player 
-        player, moves_equivariant, team_pokemon_equivariant = self.player(state['player'])
+        (player, 
+            player_moves_equivariant,
+            player_moves_types_equivariant,
+            player_team_equivariant, 
+            player_active_stats, 
+            (player_active_type1, player_active_type2),
+            (player_team_pokemon_types1, player_team_pokemon_types2)) = \
+            self.player(state['player'])
 
         # opponent
-        opponent, _, _ = self.opponent(state['opponent'])
+        (opponent, _, _, _,
+            opponent_active_stats,
+            (opponent_active_type1, opponent_active_type2),
+            (_, _)) = \
+            self.opponent(state['opponent'])
+
+
+        # similarity metrics comparing (looks more than it is)
+        # player active move types - opponent active pokemon types
+        # player team pokemon types - opponent active pokemon types
+        mv_types = player_moves_types_equivariant
+        team_type1 = player_team_pokemon_types1
+        team_type2 = player_team_pokemon_types2
+        opp_type1 = opponent_active_type1.unsqueeze(1)
+        opp_type2 = opponent_active_type2.unsqueeze(1)
+        batch_size = mv_types.shape[0]
+
+        # perform all the linear operations (in batch from d_type -> h * d_similarity) and split into h heads
+        move_p = self.W_move_p(mv_types).view(batch_size, -1, self.similarity_heads, self.d_similarity)
+        move_opp1 = self.W_move_opp(opp_type1).view(batch_size, -1, self.similarity_heads, self.d_similarity)
+        move_opp2 = self.W_move_opp(opp_type2).view(batch_size, -1, self.similarity_heads, self.d_similarity)
+
+        team_p1 = self.W_team_p(team_type1).view(batch_size, -1, self.similarity_heads, self.d_similarity)
+        team_p2 = self.W_team_p(team_type2).view(batch_size, -1, self.similarity_heads, self.d_similarity)
+        team_opp1 = self.W_team_opp(opp_type1).view(batch_size, -1, self.similarity_heads, self.d_similarity)
+        team_opp2 = self.W_team_opp(opp_type2).view(batch_size, -1, self.similarity_heads, self.d_similarity)
+
+        # # compute similarity scores, and concat using .view()
+        mv_scores1 = self.__dot_similarity(move_p, move_opp1)
+        mv_scores2 = self.__dot_similarity(move_p, move_opp2)
+
+        team_scores1 = self.__dot_similarity(team_p1, team_opp1)
+        team_scores2 = self.__dot_similarity(team_p2, team_opp2)
+
+        active_scores = torch.cat(
+            [team_scores1[:, 0, :], team_scores2[:, 0, :]],
+            dim=1)  # active is always pos=0
+
 
         # combine hidden representations of player, opponent into context
-        hidden = torch.cat([player, opponent], dim=1)
-        
-        context = hidden # self.hidden_reduce(hidden)
+        hidden = torch.cat([
+            player, 
+            player_active_stats, 
+            active_scores, 
+            opponent,
+            opponent_active_stats
+        ], dim=1)
+
+        context = self.hidden_reduce(hidden)
 
         # value function
         value = self.value_function(context).squeeze(dim=1)
 
-        # q function
+        # q function (add similarity scores of types)
         moves_and_context = torch.cat(
-            [moves_equivariant, 
+            [player_moves_equivariant,
+             mv_scores1, mv_scores2, # 2 * 4 metrics of similarity
              context.unsqueeze(1).repeat((1, 4, 1))], 
         dim=2)
 
         pokemon_and_context = torch.cat(
-            [team_pokemon_equivariant, 
+            [player_team_equivariant,
+             team_scores1, team_scores2, # 2 * 4 metrics of similarity
              context.unsqueeze(1).repeat((1, 6, 1))],
         dim=2)
 
@@ -591,30 +697,40 @@ if __name__ == '__main__':
     }
 
     hidden_layer_settings = {
-        'pokemon_hidden' : 64,
         'player' : 64,
         'opponent' : 64,
         'context' : 64,
+        'pokemon_hidden' : 32,
+
     }
 
-    model = SmallDeePikachu(
+    # player 1 neural net (initialize target network the same)
+    p1net = SmallDeePikachu2(
         state_embedding_settings,
         hidden_layer_settings,
+        move_identity=True,
+        layer_norm=True,
         dropout=0.0,
         attention=True)
 
+    p1net.train()
 
-    for i in range(34):
-        # example_state = state.create_2D_state(2)
-        example_state = torch.load(f'output/state_{i}.pt')
+    example_state = state.create_2D_state(2)
+    out = p1net(copy.deepcopy(example_state))
 
-        out = model(copy.deepcopy(example_state))
+    print('done.')
 
-        qa, qb, v = out
+    # for i in range(34):
+    #     # example_state = state.create_2D_state(2)
+    #     example_state = torch.load(f'output/state_{i}.pt')
 
-        print('Q A: ', qa[0])
-        print('Q B: ', qb[1])
-        print('V  : ', v[2])
+    #     out = p1net(copy.deepcopy(example_state))
+
+    #     qa, qb, v = out
+
+    #     print('Q A: ', qa[0])
+    #     print('Q B: ', qb[1])
+    #     print('V  : ', v[2])
 
 
 

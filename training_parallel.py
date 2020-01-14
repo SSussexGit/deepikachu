@@ -368,6 +368,7 @@ if __name__ == '__main__':
 	hidden_layer_settings = {
 		'player' : 64,
 		'opponent' : 64,
+		'context' : 64,
 		'pokemon_hidden' : 32,
 
 	}
@@ -390,14 +391,14 @@ if __name__ == '__main__':
 
 	# training
 	alpha = 0.2
-	warmup_epochs = 2  # random playing
+	warmup_epochs = 5  # random playing
 
 	# experience replay	
-	replay_size = 2e4 # 1e5 
+	replay_size = 5e4 # 1e5 
 	minibatch_size = 100
 
 	train_update_iters = 100
-	print_obj_every = 20
+	print_obj_every = 33
 
 	# player 1 neural net (initialize target network the same)
 	p1net = SmallDeePikachu2(
@@ -420,7 +421,7 @@ if __name__ == '__main__':
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(parallel_per_batch)]
 
 	# optimizer 
-	lr = 0.0004 #previously used 0.001, 0.0004 (SAC paper recommendation)
+	lr = 0.0001 #previously used 0.001, 0.0004 (SAC paper recommendation)
 	weight_decay = 1e-5
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 	
