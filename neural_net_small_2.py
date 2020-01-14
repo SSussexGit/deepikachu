@@ -519,7 +519,6 @@ class SmallDeePikachu2(nn.Module):
                 nn.init.zeros_(param)
             else:
                 # weight
-                # 0.23 is expected slope of rrelu
                 if 'embedding' in s:
                     nn.init.xavier_uniform_(param, 
                         gain=torch.nn.init.calculate_gain('leaky_relu'))
