@@ -249,7 +249,7 @@ class DeepSet2(nn.Module):
         assert(x.dim() == 3) # batch, setsize, d_in       
         rep = self.phi(x)
 
-        # mask dead pokemon (active is (batchsize, setsize))
+        # mask dead pokemon (mask is (batchsize, setsize))
         # divide by # pok alive to be invariant to # alive
         if mask is not None:
             alive_ctr = mask.sum(dim=1)

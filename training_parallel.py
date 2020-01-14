@@ -379,7 +379,7 @@ if __name__ == '__main__':
 	
 	# game
 	epochs = 100
-	batch_size = 8
+	batch_size = 16
 	parallel_per_batch = 32
 	eval_epoch_every = 3
 	formatid = 'gen5ou'
@@ -394,7 +394,7 @@ if __name__ == '__main__':
 
 	# experience replay	
 	replay_size = 2e4 # 1e5 
-	minibatch_size = 50
+	minibatch_size = 100
 
 	train_update_iters = 100
 	print_obj_every = 20
