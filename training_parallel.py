@@ -265,14 +265,14 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 		print('Debug printout')
 		with torch.no_grad():
 			prn = 4
-			tmpqa, tmpqb, tmpv = p1net(states)
+			tmpqa, tmpqb, tmpv = p1net(states).cpu()
 			if isinstance(p1net, SmallDeePikachu2):
-				print('Player pkmn alive status: \n', p1net.player.team_alive[0:prn].numpy())
-			print('QA attack: \n', tmpqa[0:prn, :4].numpy())
-			print('QA switch: \n', tmpqa[0:prn, 4:].numpy())
-			print('QB attack: \n', tmpqb[0:prn, :4].numpy())
-			print('QB switch: \n', tmpqb[0:prn, 4:].numpy())
-			print('V:         \n', tmpv[0:prn].numpy())
+				print('Player pkmn alive status: \n', p1net.player.team_alive[0:prn].cpu().numpy())
+			print('QA attack: \n', tmpqa[0:prn, :4].cpu().numpy())
+			print('QA switch: \n', tmpqa[0:prn, 4:].cpu().numpy())
+			print('QB attack: \n', tmpqb[0:prn, :4].cpu().numpy())
+			print('QB switch: \n', tmpqb[0:prn, 4:].cpu().numpy())
+			print('V:         \n', tmpv[0:prn].cpu().numpy())
 		
 
 		# do an eval epoch
