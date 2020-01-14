@@ -159,7 +159,7 @@ class ParallelLearningAgent(SACAgent):
 		'''
 		self.request_update(request.message)
 		message = request.message['request_dict']
-
+		#print(message)
 		#save the state in the buffer
 
 		#first get our valid action space
@@ -185,6 +185,8 @@ class ParallelLearningAgent(SACAgent):
 		print()
 		print()
 		'''
+		#print(q_tensor)
+		#print(value)
 		is_teampreview = ('teamspec' in valid_actions[0])
 		if(self.warmup):
 			action = random.choice(valid_actions)

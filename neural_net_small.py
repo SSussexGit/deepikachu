@@ -482,9 +482,9 @@ class SmallDeePikachu(nn.Module):
         for s, param in self.named_parameters():
             if 'embedding' in s:
                 # param.data.uniform_(-1.0, 1.0) 
-                param.data.normal_(mean=0.0, std=0.1) 
+                param.data.normal_(mean=0.0, std=1) 
             else:
-                param.data.normal_(mean=0.0, std=0.1) 
+                param.data.normal_(mean=0.0, std=1) 
         
         
     def forward(self, x):

@@ -14,6 +14,7 @@ def get_random_team(N):
 	'''
 	Returns random team of size N
 	'''
+	
 	N = min(N, 6)
 	team = ''
 	idx = random.randint(0, TEAMCOUNT - 1) 

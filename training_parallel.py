@@ -163,7 +163,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 				rtgs = torch.tensor(rtgs, dtype=torch.float)
 				logps = torch.tensor(logps, dtype=torch.float)
 				valid_actions = torch.tensor(valid_actions, dtype=torch.float).to(DEVICE)
-				rews = torch.tensor(rews, dtype=torch.float).to(DEVICE)
+				rews = 10 * torch.tensor(rews, dtype=torch.float).to(DEVICE)
 				dones = torch.tensor(dones, dtype=torch.float).to(DEVICE)
 
 				total_traj_len = actions.shape[0]
@@ -214,13 +214,13 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 				loss = mse_loss(q_action_taken_A, q_target)
 				loss.backward()
 				optimizer.step()
-
+				
 				q_losses_A.append(loss.detach().item())
 				if (tt % tt_print == tt_print - 1 and verbose):
 					print('{:3d}'.format(tt), end='\t')
 					print('Q step A: {:.8f}'.format(sum(q_losses_A) / len(q_losses_A)), end='\t')
 					q_losses_A = []
-
+				
 
 				# Q step B
 				optimizer.zero_grad()
@@ -231,12 +231,12 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 				loss = mse_loss(q_action_taken_B, q_target)
 				loss.backward()
 				optimizer.step()
-
+				
 				q_losses_B.append(loss.detach().item())
 				if (tt % tt_print == tt_print - 1 and verbose):
 					print('Q step B: {:.8f}'.format(sum(q_losses_B) / len(q_losses_B)), end='\t')
 					q_losses_B = []
-
+				
 				# V step
 				optimizer.zero_grad()
 				_, _, value_tensor = p1net(states)
@@ -359,7 +359,7 @@ if __name__ == '__main__':
 	fstring = 'run3v3'
 
 	load_state = False
-	load_fstring = 'run3v3_5_29'
+	load_fstring = 'run3v3_0_5'
 	
 	# game
 	epochs = 100
@@ -374,10 +374,10 @@ if __name__ == '__main__':
 
 	# training
 	alpha = 0.2
-	warmup_epochs = 0  # random playing
+	warmup_epochs = 2  # random playing
 
-	train_update_iters = 100
-	print_obj_every = 33
+	train_update_iters = 200
+	print_obj_every = 10
 
 	# player 1 neural net (initialize target network the same)
 	p1net = SmallDeePikachu(
