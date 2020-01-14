@@ -21,6 +21,7 @@ from data_pokemon import *
 
 import neural_net_small
 from neural_net_small import SmallDeePikachu
+from neural_net_small_2 import SmallDeePikachu2
 
 from training import LearningAgent, int_to_action, action_to_int, SACAgent, ACTION_SPACE_SIZE
 
@@ -72,6 +73,8 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	print(p1net.hidden_layer_settings)
 	print()
 	print(f'activation = {p1net.f_activation}')
+	print(f'move module is identity = {p1net.move_identity}')
+	print(f'layer norm = {p1net.layer_norm}')
 	print(f'gamma = {gamma}')
 	print(f'lam = {lam}')
 	print(f'alpha = {alpha}')
@@ -258,6 +261,20 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 						param_target.data.copy_(
 							polyak * param_target.data + (1 - polyak) * param.data)
 
+		# DEBUG
+		print('Debug printout')
+		with torch.no_grad():
+			prn = 4
+			tmpqa, tmpqb, tmpv = p1net(states)
+			if isinstance(p1net, SmallDeePikachu2):
+				print('Player pkmn alive status: \n', p1net.player.team_alive[0:prn].numpy())
+			print('QA attack: \n', tmpqa[0:prn, :4].numpy())
+			print('QA switch: \n', tmpqa[0:prn, 4:].numpy())
+			print('QB attack: \n', tmpqb[0:prn, :4].numpy())
+			print('QB switch: \n', tmpqb[0:prn, 4:].numpy())
+			print('V:         \n', tmpv[0:prn].numpy())
+		
+
 		# do an eval epoch
 		if (i % eval_epoch_every == eval_epoch_every - 1):
 
@@ -343,15 +360,14 @@ if __name__ == '__main__':
 	# parameters
 	# state_embeddings must be divisible by 4 (for MultiHeadAttention heads=4)
 	state_embedding_settings = {
-		'move':        {'embed_dim': 16, 'dict_size': neural_net.MAX_TOK_MOVE},
-		'type':        {'embed_dim': 8, 'dict_size': neural_net.MAX_TOK_TYPE},
-		'condition':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_CONDITION},
+		'move':        {'embed_dim': 32, 'dict_size': neural_net.MAX_TOK_MOVE},
+		'type':        {'embed_dim': 16, 'dict_size': neural_net.MAX_TOK_TYPE},
+		'condition':   {'embed_dim': 8, 'dict_size': neural_net.MAX_TOK_CONDITION},
 	}
 
 	hidden_layer_settings = {
-		'player' : 32,
-		'opponent' : 32,
-		'context' : 32,
+		'player' : 64,
+		'opponent' : 64,
 		'pokemon_hidden' : 32,
 
 	}
@@ -364,7 +380,7 @@ if __name__ == '__main__':
 	# game
 	epochs = 100
 	batch_size = 8
-	parallel_per_batch = 64
+	parallel_per_batch = 32
 	eval_epoch_every = 3
 	formatid = 'gen5ou'
 
@@ -376,23 +392,25 @@ if __name__ == '__main__':
 	alpha = 0.2
 	warmup_epochs = 2  # random playing
 
-	train_update_iters = 200
-	print_obj_every = 10
+	# experience replay	
+	replay_size = 2e4 # 1e5 
+	minibatch_size = 50
+
+	train_update_iters = 100
+	print_obj_every = 20
 
 	# player 1 neural net (initialize target network the same)
-	p1net = SmallDeePikachu(
+	p1net = SmallDeePikachu2(
         state_embedding_settings,
         hidden_layer_settings,
+		move_identity=True,
+		layer_norm=True,
         dropout=0.0,
         attention=True)
 	p1net = p1net.to(DEVICE)
 
 	v_target_net = copy.deepcopy(p1net)
 	v_target_net.to(DEVICE)
-
-	# experience replay
-	replay_size = 1e5
-	minibatch_size = 100 # number of examples sampled from experience replay in each update
 
 	replay = ExperienceReplay(size=int(replay_size), minibatch_size=minibatch_size)
 
@@ -403,7 +421,7 @@ if __name__ == '__main__':
 
 	# optimizer 
 	lr = 0.001 #previously used 0.001, 0.0004 (SAC paper recommendation)
-	weight_decay = 1e-4
+	weight_decay = 1e-5
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 	
 
@@ -422,7 +440,7 @@ if __name__ == '__main__':
 	''' 
 
 	# sample teams: player_team_size in [1 .. 6]
-	player_team_size = 1
+	player_team_size = 3
 
 	# run training epochs
 	p1s, p2s, optimizer, p1net, replay, results = train_parallel_epochs(
