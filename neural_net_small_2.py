@@ -508,9 +508,9 @@ class SmallDeePikachu2(nn.Module):
         self.d_similarity_out = self.similarity_heads * self.similarity_heads
         assert(self.d_type % self.similarity_heads == 0)
 
-        # (player) + (opponent) + (similarity of active types) + (stats of both players active)
+        # (player) + (opponent) + (similarity of four active type pairs) + (stats of both players active)
         self.d_hidden_in = self.d_player + self.d_opp + \
-            2 * self.d_similarity_out + 12
+            4 * self.d_similarity_out + 12
 
         self.state_embedding = State2(state_embedding_settings)
         self.state_embedding_settings = state_embedding_settings
@@ -558,11 +558,11 @@ class SmallDeePikachu2(nn.Module):
         
         self.q_combine_pokemon_context = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(self.d_pokemon + self.d_context + 2 * self.d_similarity_out, self.d_context), make_f_activation(),
+                nn.Linear(self.d_pokemon + self.d_context + 4 * self.d_similarity_out, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1), 
             ),
             nn.Sequential(
-                nn.Linear(self.d_pokemon + self.d_context + 2 * self.d_similarity_out, self.d_context), make_f_activation(),
+                nn.Linear(self.d_pokemon + self.d_context + 4 * self.d_similarity_out, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1), 
             )])
 
@@ -636,12 +636,17 @@ class SmallDeePikachu2(nn.Module):
         mv_scores1 = self.__dot_similarity(move_p, move_opp1)
         mv_scores2 = self.__dot_similarity(move_p, move_opp2)
 
-        team_scores1 = self.__dot_similarity(team_p1, team_opp1)
-        team_scores2 = self.__dot_similarity(team_p2, team_opp2)
+        team_scores11 = self.__dot_similarity(team_p1, team_opp1)
+        team_scores12 = self.__dot_similarity(team_p1, team_opp2)
+        team_scores21 = self.__dot_similarity(team_p2, team_opp1)
+        team_scores22 = self.__dot_similarity(team_p2, team_opp2)
 
-        active_scores = torch.cat(
-            [team_scores1[:, 0, :], team_scores2[:, 0, :]],
-            dim=1)  # active is always pos=0
+        active_scores = torch.cat([
+            team_scores11[:, 0, :], 
+            team_scores21[:, 0, :],
+            team_scores12[:, 0, :],
+            team_scores22[:, 0, :]
+        ], dim=1)  # active is always pos=0
 
 
         # combine hidden representations of player, opponent into context
@@ -661,13 +666,13 @@ class SmallDeePikachu2(nn.Module):
         # q function (add similarity scores of types)
         moves_and_context = torch.cat(
             [player_moves_equivariant,
-             mv_scores1, mv_scores2, # 2 * 4 metrics of similarity
+             mv_scores1, mv_scores2, # 2 * 4 metrics of similarity (two pairs of types)
              context.unsqueeze(1).repeat((1, 4, 1))], 
         dim=2)
 
         pokemon_and_context = torch.cat(
             [player_team_equivariant,
-             team_scores1, team_scores2, # 2 * 4 metrics of similarity
+             team_scores11, team_scores12, team_scores21, team_scores22, # 4 * 4 metrics of similarity (four pairs of types)
              context.unsqueeze(1).repeat((1, 6, 1))],
         dim=2)
 

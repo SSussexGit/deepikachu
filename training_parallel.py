@@ -19,8 +19,7 @@ from agents import *
 from state import *
 from data_pokemon import *
 
-import neural_net_small
-from neural_net_small import SmallDeePikachu
+import neural_net_small_2
 from neural_net_small_2 import SmallDeePikachu2
 
 from training import LearningAgent, int_to_action, action_to_int, SACAgent, ACTION_SPACE_SIZE
@@ -360,9 +359,9 @@ if __name__ == '__main__':
 	# parameters
 	# state_embeddings must be divisible by 4 (for MultiHeadAttention heads=4)
 	state_embedding_settings = {
-		'move':        {'embed_dim': 32, 'dict_size': neural_net.MAX_TOK_MOVE},
-		'type':        {'embed_dim': 16, 'dict_size': neural_net.MAX_TOK_TYPE},
-		'condition':   {'embed_dim': 8, 'dict_size': neural_net.MAX_TOK_CONDITION},
+		'move':        {'embed_dim': 32, 'dict_size': neural_net_small_2.MAX_TOK_MOVE},
+		'type':        {'embed_dim': 16, 'dict_size': neural_net_small_2.MAX_TOK_TYPE},
+		'condition':   {'embed_dim': 8, 'dict_size': neural_net_small_2.MAX_TOK_CONDITION},
 	}
 
 	hidden_layer_settings = {
