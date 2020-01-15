@@ -42,6 +42,9 @@ MAX_TOK_ALIVE        = 2
 MAX_TOK_DISABLED     = 2
 MAX_TOK_SPIKES       = 4
 MAX_TOK_TOXSPIKES    = 3
+MAX_TOK_MOVE_CATEGORY = 7
+
+HP_SCALE = 10
 
 # imputations
 VAL_STAT =     torch.tensor([2/8, 2/7, 2/6, 2/5, 2/4, 2/3, 2/2, 3/2, 4/2, 5/2, 6/2, 7/2, 8/2])
@@ -97,6 +100,7 @@ class State2(torch.nn.Module):
         self.type_fields = set(['pokemontype1', 'pokemontype2', 'movetype'])
         self.move_fields = set(['moveid'])
         self.condition_fields = set(['condition'])
+        self.move_category_fields = set(['category'])
    
         # manual impuations
         self.opponent_field = set(['opponent'])
@@ -105,6 +109,7 @@ class State2(torch.nn.Module):
         self.type_embedding = SingleEmbedding2(settings['type'])
         self.move_embedding = SingleEmbedding2(settings['move'])
         self.condition_embedding = SingleEmbedding2(settings['condition'])
+        self.move_category_embedding = SingleEmbedding2(settings['move_category'])
 
     def __recursive_replace(self, x):
 
@@ -138,6 +143,8 @@ class State2(torch.nn.Module):
                     x[key] = self.move_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                 elif key in self.condition_fields:
                     x[key] = self.condition_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
+                elif key in self.move_category_fields:
+                    x[key] = self.move_category_embedding(torch.tensor(value, dtype=torch.long, device=DEVICE))
                
                 # regular value, no embedding necessary
                 else:
@@ -164,15 +171,14 @@ class MultiHeadedAttention(nn.Module):
     def __init__(self, h, d_model, dropout=0.0):
         "Take in model size and number of heads."
         super(MultiHeadedAttention, self).__init__()
-        assert d_model % h == 0
-        # We assume d_v always equals d_k
+
         self.d_k = d_model // h
         self.h = h
 
-        self.W_q = nn.Linear(d_model, d_model)
-        self.W_k = nn.Linear(d_model, d_model)
-        self.W_v = nn.Linear(d_model, d_model)
-        self.W_o = nn.Linear(d_model, d_model, bias=False) # bias false s.t. masking of dead pokemon correct (I think)
+        self.W_q = nn.Linear(d_model, self.h * self.d_k)
+        self.W_k = nn.Linear(d_model, self.h * self.d_k)
+        self.W_v = nn.Linear(d_model, self.h * self.d_k)
+        self.W_o = nn.Linear(self.h * self.d_k, d_model, bias=False) # bias false s.t. masking of dead pokemon correct (I think)
         
         self.attn = None
         self.dropout = nn.Dropout(p=dropout)
@@ -285,8 +291,9 @@ class MoveRepresentation2(nn.Module):
         
         self.d_move = s['move']['embed_dim']
         self.d_move_type = s['type']['embed_dim']
+        self.d_move_category = s['move_category']['embed_dim']
 
-        self.cat_dim = self.d_move + self.d_move_type 
+        self.cat_dim = self.d_move + self.d_move_type + self.d_move_category + 1 # accuracy
         self.d_out = 2 * self.cat_dim if not move_identity else self.cat_dim # define this to be out dim
 
         self.final = nn.Sequential(
@@ -299,6 +306,8 @@ class MoveRepresentation2(nn.Module):
         h = [
              x['moveid'],
              x['movetype'],
+             x['category'],
+             x['accuracy'] / 20 # else initialization is extreme
         ]
 
         h = torch.cat(h, dim=1)
@@ -367,10 +376,9 @@ class PokemonRepresentation2(nn.Module):
         moves_invariant = self.move_DS(moves_equivariant)
 
         # pokemon representation
-        if (x['stats']['max_hp'] == 0).sum() != 0:
-            relative_hp = x['hp'] * 0.0
-        else:
-            relative_hp = x['hp'] / x['stats']['max_hp']
+        max_hp = copy.deepcopy(x['stats']['max_hp'])
+        max_hp = max_hp.masked_fill(max_hp == 0, 1.0).float() # so no div by 0 if maxhp = 0
+        relative_hp = x['hp'] / max_hp * HP_SCALE
 
         h = [
              moves_invariant,
@@ -401,7 +409,14 @@ class PokemonRepresentation2(nn.Module):
             relative_hp], dim=1)
 
         # return (hidden representation, equivariant move representations (for policy))
-        return pokemon_invariant, moves_equivariant, moves_types_equivariant, pokemon_stats, pokemon_types
+        return (pokemon_invariant, 
+            moves_equivariant, 
+            moves_types_equivariant, 
+            pokemon_stats, 
+            pokemon_types, 
+            relative_hp)
+
+            
 
 class PlayerRepresentation2(nn.Module):
     '''
@@ -448,21 +463,26 @@ class PlayerRepresentation2(nn.Module):
             active_moves_equivariant, 
             active_moves_types_equivariant, 
             active_stats, 
-            active_types) = \
+            active_types,
+            active_hp) = \
             self.active_pokemon(x['active'])
 
         # team pokemon representation 
         team_pokemon = []
         team_pokemon_types1 = []
         team_pokemon_types2 = []
+        team_pokemon_hp = []
         for i in range(6):
-            poke_rep, _, _, _, poke_types = self.team_pokemon(x['team'][i])
+            poke_rep, _, _, _, poke_types, poke_hp = self.team_pokemon(x['team'][i])
             team_pokemon.append(poke_rep)
             team_pokemon_types1.append(poke_types[0])
             team_pokemon_types2.append(poke_types[1])
+            team_pokemon_hp.append(poke_hp)
+
         team_pokemon = torch.stack(team_pokemon, dim=1)  # bs, pokemon, d
         team_pokemon_types1 = torch.stack(team_pokemon_types1, dim=1)  # bs, pokemon, d
         team_pokemon_types2 = torch.stack(team_pokemon_types2, dim=1)  # bs, pokemon, d
+        team_pokemon_hp = torch.stack(team_pokemon_hp, dim=1)  # bs, pokemon, d
         
         # get alive status for masking in attention and deep set
         self.team_alive = torch.cat([x['team'][i]['alive'] for i in range(6)], dim=1)
@@ -478,7 +498,15 @@ class PlayerRepresentation2(nn.Module):
         # combine into player representation
         player = self.final(torch.cat([active_invariant, team], dim=1))
 
-        return player, active_moves_equivariant, active_moves_types_equivariant, team_pokemon_equivariant, active_stats, active_types, (team_pokemon_types1, team_pokemon_types2)
+        return (player, 
+            active_moves_equivariant, 
+            active_moves_types_equivariant, 
+            team_pokemon_equivariant, 
+            active_stats, 
+            active_types, 
+            (team_pokemon_types1, team_pokemon_types2),
+            active_hp, 
+            team_pokemon_hp)
 
 
 
@@ -503,14 +531,18 @@ class SmallDeePikachu2(nn.Module):
 
         # similarity metrics
         self.d_type = state_embedding_settings['type']['embed_dim']
-        self.similarity_heads = 2 # this will result in h * h similarity metrics per type
-        self.d_similarity = self.d_type // self.similarity_heads  # arbitrary
-        self.d_similarity_out = self.similarity_heads * self.similarity_heads
-        assert(self.d_type % self.similarity_heads == 0)
 
-        # (player) + (opponent) + (similarity of four active type pairs) + (stats of both players active)
+        # this will result in h * h similarity metrics per type
+        self.sim_heads_opp = 3 
+        self.sim_heads_p = 2
+
+        self.d_sim = self.d_type // 2 # arbitrary
+        self.d_sim_opp_out = self.sim_heads_opp * self.sim_heads_opp
+        self.d_sim_p_out = self.sim_heads_p * self.sim_heads_p
+
+        # (player) + (opponent) + (similarity of four active type pairs) + (stats of both players active) + (hp summaries)
         self.d_hidden_in = self.d_player + self.d_opp + \
-            4 * self.d_similarity_out + 12
+            4 * self.d_sim_opp_out + 12 + 4
 
         self.state_embedding = State2(state_embedding_settings)
         self.state_embedding_settings = state_embedding_settings
@@ -534,36 +566,50 @@ class SmallDeePikachu2(nn.Module):
        
 
         # similarity metrics
-        self.W_move_p = nn.Linear(self.d_type, self.similarity_heads * self.d_similarity) # p move - opp active
-        self.W_move_opp = nn.Linear(self.d_type, self.similarity_heads * self.d_similarity) 
-        self.W_team_p = nn.Linear(self.d_type, self.similarity_heads * self.d_similarity) # p team - opp active
-        self.W_team_opp = nn.Linear(self.d_type, self.similarity_heads * self.d_similarity)
+        # A = player moves - opp active
+        # B = player team  - opp active
+        # C = player moves - player active
+        self.A_p = nn.Linear(self.d_type, self.sim_heads_opp * self.d_sim) # p move - opp active
+        self.A_opp = nn.Linear(self.d_type, self.sim_heads_opp * self.d_sim) 
+        
+        self.B_p = nn.Linear(self.d_type, self.sim_heads_opp * self.d_sim) # p team - opp active
+        self.B_opp = nn.Linear(self.d_type, self.sim_heads_opp * self.d_sim)
+
+        self.C_p_move = nn.Linear(self.d_type, self.sim_heads_p * self.d_sim) # p move - p active
+        self.C_p_active = nn.Linear(self.d_type, self.sim_heads_p * self.d_sim)
 
         # value function
         self.value_function = nn.Sequential(
+                nn.Linear(self.d_context, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1), 
             )
         
         # Q function (heads 1 and 2) 
+        self.d_q_move_in = self.d_move + self.d_context + 2 * self.d_sim_opp_out + 2 * self.d_sim_p_out + 4 # hp summaries
+        self.d_q_team_in = self.d_pokemon + self.d_context + 4 * self.d_sim_opp_out + 5 # team i hp + hp summaries
         self.q_combine_moves_context = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(self.d_move + self.d_context + 2 * self.d_similarity_out, self.d_context), make_f_activation(),
-                nn.Linear(self.d_context, 1), 
+                nn.Linear(self.d_q_move_in, self.d_context), make_f_activation(),
+                nn.Linear(self.d_context, self.d_context), make_f_activation(),
+                nn.Linear(self.d_context, 1),
             ),
             nn.Sequential(
-                nn.Linear(self.d_move + self.d_context + 2 * self.d_similarity_out, self.d_context), make_f_activation(),
-                nn.Linear(self.d_context, 1),  
+                nn.Linear(self.d_q_move_in, self.d_context), make_f_activation(),
+                nn.Linear(self.d_context, self.d_context), make_f_activation(),
+                nn.Linear(self.d_context, 1),
             )])
         
         self.q_combine_pokemon_context = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(self.d_pokemon + self.d_context + 4 * self.d_similarity_out, self.d_context), make_f_activation(),
-                nn.Linear(self.d_context, 1), 
+                nn.Linear(self.d_q_team_in, self.d_context), make_f_activation(),
+                nn.Linear(self.d_context, self.d_context), make_f_activation(),
+                nn.Linear(self.d_context, 1),
             ),
             nn.Sequential(
-                nn.Linear(self.d_pokemon + self.d_context + 4 * self.d_similarity_out, self.d_context), make_f_activation(),
-                nn.Linear(self.d_context, 1), 
+                nn.Linear(self.d_q_team_in, self.d_context), make_f_activation(),
+                nn.Linear(self.d_context, self.d_context), make_f_activation(),
+                nn.Linear(self.d_context, 1),
             )])
 
         # random init
@@ -580,13 +626,13 @@ class SmallDeePikachu2(nn.Module):
                     nn.init.xavier_uniform_(param, 
                         gain=torch.nn.init.calculate_gain('leaky_relu'))
 
-    def __dot_similarity(self, k, v):
+    def __dot_similarity(self, k, v, heads):
         # compute batched dot product and rescale heads
         batch_size = k.shape[0]
         out = torch.matmul(k, v.transpose(-2, -1)) \
-            / math.sqrt(self.d_similarity)
+            / math.sqrt(self.d_sim)
         return out.view( batch_size, -1, 
-            self.similarity_heads * self.similarity_heads).contiguous()
+            heads * heads).contiguous()
 
         
     def forward(self, x):
@@ -601,16 +647,23 @@ class SmallDeePikachu2(nn.Module):
             player_team_equivariant, 
             player_active_stats, 
             (player_active_type1, player_active_type2),
-            (player_team_pokemon_types1, player_team_pokemon_types2)) = \
+            (player_team_pokemon_types1, player_team_pokemon_types2),
+            player_active_hp,
+            player_team_hp) = \
             self.player(state['player'])
 
         # opponent
         (opponent, _, _, _,
             opponent_active_stats,
             (opponent_active_type1, opponent_active_type2),
-            (_, _)) = \
+            (_, _),
+            opponent_active_hp,
+            opponent_team_hp) = \
             self.opponent(state['opponent'])
 
+        # hp average
+        player_team_hp_ave = player_team_hp.sum(dim=1) / 6.0
+        opponent_team_hp_ave = opponent_team_hp.sum(dim=1) / 6.0
 
         # similarity metrics comparing (looks more than it is)
         # player active move types - opponent active pokemon types
@@ -618,44 +671,66 @@ class SmallDeePikachu2(nn.Module):
         mv_types = player_moves_types_equivariant
         team_type1 = player_team_pokemon_types1
         team_type2 = player_team_pokemon_types2
-        opp_type1 = opponent_active_type1.unsqueeze(1)
-        opp_type2 = opponent_active_type2.unsqueeze(1)
+        p_active_type1 = player_active_type1.unsqueeze(1)
+        p_active_type2 = player_active_type2.unsqueeze(1)
+
+        opp_active_type1 = opponent_active_type1.unsqueeze(1)
+        opp_active_type2 = opponent_active_type2.unsqueeze(1)
+
         batch_size = mv_types.shape[0]
 
         # perform all the linear operations (in batch from d_type -> h * d_similarity) and split into h heads
-        move_p = self.W_move_p(mv_types).view(batch_size, -1, self.similarity_heads, self.d_similarity)
-        move_opp1 = self.W_move_opp(opp_type1).view(batch_size, -1, self.similarity_heads, self.d_similarity)
-        move_opp2 = self.W_move_opp(opp_type2).view(batch_size, -1, self.similarity_heads, self.d_similarity)
+        move_p = self.A_p(mv_types).view(batch_size, -1, self.sim_heads_opp, self.d_sim)
+        move_opp1 = self.A_opp(opp_active_type1).view(batch_size, -1, self.sim_heads_opp, self.d_sim)
+        move_opp2 = self.A_opp(opp_active_type2).view(batch_size, -1, self.sim_heads_opp, self.d_sim)
 
-        team_p1 = self.W_team_p(team_type1).view(batch_size, -1, self.similarity_heads, self.d_similarity)
-        team_p2 = self.W_team_p(team_type2).view(batch_size, -1, self.similarity_heads, self.d_similarity)
-        team_opp1 = self.W_team_opp(opp_type1).view(batch_size, -1, self.similarity_heads, self.d_similarity)
-        team_opp2 = self.W_team_opp(opp_type2).view(batch_size, -1, self.similarity_heads, self.d_similarity)
+        team_p1 = self.B_p(team_type1).view(batch_size, -1, self.sim_heads_opp, self.d_sim)
+        team_p2 = self.B_p(team_type2).view(batch_size, -1, self.sim_heads_opp, self.d_sim)
+        team_opp1 = self.B_opp(opp_active_type1).view(batch_size, -1, self.sim_heads_opp, self.d_sim)
+        team_opp2 = self.B_opp(opp_active_type2).view(batch_size, -1, self.sim_heads_opp, self.d_sim)
+        active_p1 = self.B_p(p_active_type1).view(batch_size, -1, self.sim_heads_opp, self.d_sim) # comp active as well 
+        active_p2 = self.B_p(p_active_type2).view(batch_size, -1, self.sim_heads_opp, self.d_sim)
 
+        stab_move = self.C_p_move(mv_types).view(batch_size, -1, self.sim_heads_p, self.d_sim)
+        stab_active1 = self.C_p_active(p_active_type1).view(batch_size, -1, self.sim_heads_p, self.d_sim)
+        stab_active2 = self.C_p_active(p_active_type2).view(batch_size, -1, self.sim_heads_p, self.d_sim)
+              
         # # compute similarity scores, and concat using .view()
-        mv_scores1 = self.__dot_similarity(move_p, move_opp1)
-        mv_scores2 = self.__dot_similarity(move_p, move_opp2)
+        # A
+        mv_scores1 = self.__dot_similarity(move_p, move_opp1, self.sim_heads_opp)
+        mv_scores2 = self.__dot_similarity(move_p, move_opp2, self.sim_heads_opp)
 
-        team_scores11 = self.__dot_similarity(team_p1, team_opp1)
-        team_scores12 = self.__dot_similarity(team_p1, team_opp2)
-        team_scores21 = self.__dot_similarity(team_p2, team_opp1)
-        team_scores22 = self.__dot_similarity(team_p2, team_opp2)
-
+        # B
+        team_scores11 = self.__dot_similarity(team_p1, team_opp1, self.sim_heads_opp)
+        team_scores12 = self.__dot_similarity(team_p1, team_opp2, self.sim_heads_opp)
+        team_scores21 = self.__dot_similarity(team_p2, team_opp1, self.sim_heads_opp)
+        team_scores22 = self.__dot_similarity(team_p2, team_opp2, self.sim_heads_opp)
+        
+        # type scores: p active - opp active
         active_scores = torch.cat([
-            team_scores11[:, 0, :], 
-            team_scores21[:, 0, :],
-            team_scores12[:, 0, :],
-            team_scores22[:, 0, :]
-        ], dim=1)  # active is always pos=0
+            self.__dot_similarity(active_p1, team_opp1, self.sim_heads_opp).squeeze(1),
+            self.__dot_similarity(active_p1, team_opp2, self.sim_heads_opp).squeeze(1),
+            self.__dot_similarity(active_p2, team_opp1, self.sim_heads_opp).squeeze(1),
+            self.__dot_similarity(active_p2, team_opp2, self.sim_heads_opp).squeeze(1),
+        ], dim=1) 
+        
+        # C
+        mv_scores_own1 = self.__dot_similarity(stab_move, stab_active1, self.sim_heads_p)
+        mv_scores_own2 = self.__dot_similarity(stab_move, stab_active2, self.sim_heads_p)
 
 
-        # combine hidden representations of player, opponent into context
+        # combine hidden representations of 
+        # player, opponent, active sims, hps into context 
         hidden = torch.cat([
             player, 
             player_active_stats, 
             active_scores, 
             opponent,
-            opponent_active_stats
+            opponent_active_stats,
+            player_active_hp,
+            opponent_active_hp,
+            player_team_hp_ave,
+            opponent_team_hp_ave,
         ], dim=1)
 
         context = self.hidden_reduce(hidden)
@@ -666,13 +741,24 @@ class SmallDeePikachu2(nn.Module):
         # q function (add similarity scores of types)
         moves_and_context = torch.cat(
             [player_moves_equivariant,
-             mv_scores1, mv_scores2, # 2 * 4 metrics of similarity (two pairs of types)
-             context.unsqueeze(1).repeat((1, 4, 1))], 
+             mv_scores1, mv_scores2,  # 2 * 4 metrics of similarity (comp w 2x opp type)
+             mv_scores_own1, mv_scores_own2, # 2 * 4 metrics of similarity(comp w 2x own type),
+             player_active_hp.unsqueeze(1).repeat((1, 4, 1)), # own hp
+             player_team_hp_ave.unsqueeze(1).repeat((1, 4, 1)),
+             opponent_active_hp.unsqueeze(1).repeat((1, 4, 1)), # opp hp
+             opponent_team_hp_ave.unsqueeze(1).repeat((1, 4, 1)),
+             context.unsqueeze(1).repeat((1, 4, 1))
+             ], 
         dim=2)
 
         pokemon_and_context = torch.cat(
             [player_team_equivariant,
-             team_scores11, team_scores12, team_scores21, team_scores22, # 4 * 4 metrics of similarity (four pairs of types)
+             team_scores11, team_scores12, team_scores21, team_scores22, # 4 * 4 metrics of similarity (comp 2x own type w 2x opp type)
+             player_team_hp, # team hp individual (equivariant)
+             player_active_hp.unsqueeze(1).repeat((1, 6, 1)), # own hp
+             player_team_hp_ave.unsqueeze(1).repeat((1, 6, 1)),
+             opponent_active_hp.unsqueeze(1).repeat((1, 6, 1)), # opp hp
+             opponent_team_hp_ave.unsqueeze(1).repeat((1, 6, 1)),
              context.unsqueeze(1).repeat((1, 6, 1))],
         dim=2)
 
@@ -699,6 +785,7 @@ if __name__ == '__main__':
         'move':        {'embed_dim': 32, 'dict_size': MAX_TOK_MOVE},
         'type':        {'embed_dim': 16, 'dict_size': MAX_TOK_TYPE},
         'condition':   {'embed_dim': 8, 'dict_size': MAX_TOK_CONDITION},
+        'move_category':   {'embed_dim': 8, 'dict_size': MAX_TOK_MOVE_CATEGORY},
     }
 
     hidden_layer_settings = {
@@ -739,5 +826,19 @@ if __name__ == '__main__':
 
 
 
+    # increase hp scale
+    # skip hps to the end 
+    #   context: active (already there) sum of team
+    #   after context: active, sum of team
+    #   to each team pokemon: hp of that pokemon
+    '''
+
+    Skip the following variables forward to final prediction layers and context:
+    Own hp percentage * 100
+    Opponent hp percentage * 100
+    Average own team total percentage* 100
+    Average opponent team percentage hp * 100
+    Hp of pokemon to each pokemon representation unprocessed
+    '''
 
 

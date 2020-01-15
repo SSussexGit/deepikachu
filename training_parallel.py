@@ -42,7 +42,7 @@ def save_model(fname, c, i, model, model_target, optimizer):
 		'model_state_dict': model.state_dict(),
 		'target_state_dict': model_target.state_dict(),
 		'optimizer_state_dict': optimizer.state_dict(),
-    }, SAVE_ROOT + fname + '_' + str(c) + '_' + str(i) + '.pt')
+    }, SAVE_ROOT + fname + '_c=' + str(c) + '_ep=' + str(i) + '.pt')
 
 def load_model(fname, model, model_target, optimizer):
 	checkpoint = torch.load(SAVE_ROOT + fname + '.pt', map_location = torch.device(DEVICE))
@@ -326,6 +326,15 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 
 			eval_win_array.append(p1winrate_eval)
 
+			with open('output/' + fstring + '_train_win_rates_c=' + str(c) + '_ep=' + str(i) + '.csv', 'w') as myfile:
+				wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+				wr.writerow(train_win_array)
+
+			with open('output/' + fstring + '_eval_win_rates_c=' + str(c) + '_ep=' + str(i) + '.csv', 'w') as myfile:
+				wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+				wr.writerow(eval_win_array)
+
+
 	# end
 	results = {
 		'train_win_rates' : train_win_array,
@@ -359,9 +368,10 @@ if __name__ == '__main__':
 	# parameters
 	# state_embeddings must be divisible by 4 (for MultiHeadAttention heads=4)
 	state_embedding_settings = {
-		'move':        {'embed_dim': 32, 'dict_size': neural_net_small_2.MAX_TOK_MOVE},
-		'type':        {'embed_dim': 16, 'dict_size': neural_net_small_2.MAX_TOK_TYPE},
-		'condition':   {'embed_dim': 8, 'dict_size': neural_net_small_2.MAX_TOK_CONDITION},
+		'move':        		{'embed_dim': 32, 'dict_size': neural_net_small_2.MAX_TOK_MOVE},
+		'type':        		{'embed_dim': 16, 'dict_size': neural_net_small_2.MAX_TOK_TYPE},
+		'condition':   		{'embed_dim': 8, 'dict_size': neural_net_small_2.MAX_TOK_CONDITION},
+	    'move_category':    {'embed_dim': 8, 'dict_size': neural_net_small_2.MAX_TOK_MOVE_CATEGORY},
 	}
 
 	hidden_layer_settings = {
@@ -379,9 +389,9 @@ if __name__ == '__main__':
 	
 	# game
 	epochs = 100
-	batch_size = 8
+	batch_size = 16
 	parallel_per_batch = 64
-	eval_epoch_every = 8
+	eval_epoch_every = 5
 	formatid = 'gen5ou'
 
 	gamma = 0.99
@@ -393,7 +403,7 @@ if __name__ == '__main__':
 	warmup_epochs = 5  # random playing
 
 	# experience replay	
-	replay_size = 5e4 # 1e5 
+	replay_size = 1e5 
 	minibatch_size = 100
 
 	train_update_iters = 100
@@ -453,15 +463,13 @@ if __name__ == '__main__':
 		fstring=fstring, tt_print=print_obj_every, verbose=verbose
 	)
 
-	with open('output/' + fstring + '_train_win_rates_' + str(c) + '.csv', 'w') as myfile:
+	with open('output/' + fstring + '_train_win_rates_' + str(c) + '_END.csv', 'w') as myfile:
 		wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
 		wr.writerow(results['train_win_rates'])
 
-	with open('output/' + fstring + '_eval_win_rates_' + str(c) + '.csv', 'w') as myfile:
+	with open('output/' + fstring + '_eval_win_rates_' + str(c) + '_END.csv', 'w') as myfile:
 		wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
 		wr.writerow(results['eval_win_rates'])
-
-
 
 
 
