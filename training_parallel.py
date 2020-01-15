@@ -110,10 +110,10 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 		if(i >= warmup_epochs):
 			for k in range(parallel_per_batch):
 				p1s[k].warmup = False
+				p1s[k].alpha = max(0.87*p1s[k].alpha, 0.05)
 		else:
 			for k in range(parallel_per_batch):
 				p1s[k].warmup = True
-				p1s[k].alpha = max(0.9*p1s[k].alpha, 0.05)
 
 		# simulate `BATCH_SIZE` * `PARELLEL_PER_BATCH` games parallelized and store result in replay
 		for j in range(batch_size):
@@ -379,9 +379,9 @@ if __name__ == '__main__':
 	
 	# game
 	epochs = 100
-	batch_size = 16
-	parallel_per_batch = 64
-	eval_epoch_every = 3
+	batch_size = 200
+	parallel_per_batch = 8
+	eval_epoch_every = 64
 	formatid = 'gen5ou'
 
 	gamma = 0.99
@@ -389,7 +389,7 @@ if __name__ == '__main__':
 	verbose = True
 
 	# training
-	alpha = 0.2
+	alpha = 0.75
 	warmup_epochs = 5  # random playing
 
 	# experience replay	

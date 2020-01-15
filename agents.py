@@ -197,6 +197,17 @@ class DefaultAgent:
                 #if the type is not yet set, fill it in
                 if(pokemon_state['moves'][j]['movetype'] == type_token):
                     pokemon_state['moves'][j]['movetype'] = type_data[move_data[move_string]['type'].lower()]['num']
+                
+                #move category
+                pokemon_state['moves'][j]['category'] = category_data[move_data[move_string]['category']]['num']
+
+                #accuracy, priority
+                if(move_data[move_string]['accuracy'] == 'True'):
+                    pokemon_state['moves'][j]['accuracy'] = 100
+                else:
+                    pokemon_state['moves'][j]['accuracy'] = move_data[move_string]['accuracy']
+                    
+                pokemon_state['moves'][j]['priority'] = move_data[move_string]['priority']
 
                 j+=1
 

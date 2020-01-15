@@ -17,6 +17,7 @@ weather_token = 0
 terrain_token = 0
 condition_token = 0
 twoturnnum_token = 0
+damage_category_token = 0
 
 EMPTY = 1
 
@@ -38,6 +39,9 @@ default_move_state = {
 	'maxpp': 0,
 	'pp': 0,
 	'movetype' : move_type_token,
+	'category' : damage_category_token,
+	'accuracy' : 0,
+	'priority' : 0, #priority anywhere from -6 to 6 like stat boosts
 }
 
 #to add: weight
@@ -191,6 +195,9 @@ def create_2D_state(size):
 		'maxpp': np.full((size), 0, dtype=int),
 		'pp': np.full((size), 0, dtype=int),
 		'movetype' : np.full((size), move_type_token, dtype=int),
+		'category' : np.full((size), damage_category_token, dtype=int),
+		'accuracy' : np.full((size), 0, dtype=int),
+		'priority' : np.full((size), 0, dtype=int), #priority anywhere from -6 to 6 like stat boosts
 	}
 
 	#to add: weight

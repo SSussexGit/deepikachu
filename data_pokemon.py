@@ -41,6 +41,16 @@ for type_string in type_list:
 	type_data[type_string] = {"num": i}
 	i+=1
 
+#categories of moves
+category_list = []
+for move in move_data:
+	if move_data[move]['category'] not in category_list:
+		category_list.append(move_data[move]['category'])
+category_data = {}
+i = 0
+for category_string in category_list:
+	category_data[category_string] = {"num": i}
+	i+=1
 
 #add in a loop for each dictionary that makes everything 2 indexed
 for data_dict in [pokedex_data, ability_data, move_data, item_data, type_data, terrain_data, weather_data, status_data]:
@@ -49,3 +59,9 @@ for data_dict in [pokedex_data, ability_data, move_data, item_data, type_data, t
 		data_dict[element]['num'] += 2
 		max_token = max(max_token, data_dict[element]['num'])
 	#print(max_token)
+
+		
+
+
+
+
