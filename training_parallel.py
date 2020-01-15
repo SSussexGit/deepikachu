@@ -379,9 +379,9 @@ if __name__ == '__main__':
 	
 	# game
 	epochs = 100
-	batch_size = 200
-	parallel_per_batch = 8
-	eval_epoch_every = 64
+	batch_size = 8
+	parallel_per_batch = 64
+	eval_epoch_every = 8
 	formatid = 'gen5ou'
 
 	gamma = 0.99

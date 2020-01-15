@@ -206,8 +206,12 @@ class DefaultAgent:
                     pokemon_state['moves'][j]['accuracy'] = 100
                 else:
                     pokemon_state['moves'][j]['accuracy'] = move_data[move_string]['accuracy']
-                    
+
                 pokemon_state['moves'][j]['priority'] = move_data[move_string]['priority']
+
+                #STAB
+                if pokemon_state['moves'][j]['movetype'] in [pokemon_state['pokemontype1'], pokemon_state['pokemontype2']]:
+                    pokemon['moves'][j]['stab'] = True
 
                 j+=1
 

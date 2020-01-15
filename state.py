@@ -42,6 +42,7 @@ default_move_state = {
 	'category' : damage_category_token,
 	'accuracy' : 0,
 	'priority' : 0, #priority anywhere from -6 to 6 like stat boosts
+	'stab' : False,
 }
 
 #to add: weight
@@ -198,6 +199,7 @@ def create_2D_state(size):
 		'category' : np.full((size), damage_category_token, dtype=int),
 		'accuracy' : np.full((size), 0, dtype=int),
 		'priority' : np.full((size), 0, dtype=int), #priority anywhere from -6 to 6 like stat boosts
+		'stab' : np.full((size), False, dtype=bool),
 	}
 
 	#to add: weight
