@@ -382,7 +382,7 @@ if __name__ == '__main__':
 
 	}
 
-	fstring = 'run3v3'
+	fstring = 'run6v6'
 
 	load_state = False
 	load_fstring = 'run3v3_0_5'
@@ -450,7 +450,7 @@ if __name__ == '__main__':
 	''' 
 
 	# sample teams: player_team_size in [1 .. 6]
-	player_team_size = 3
+	player_team_size = 6
 
 	# run training epochs
 	p1s, p2s, optimizer, p1net, replay, results = train_parallel_epochs(

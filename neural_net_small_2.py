@@ -540,9 +540,9 @@ class SmallDeePikachu2(nn.Module):
         self.d_sim_opp_out = self.sim_heads_opp * self.sim_heads_opp
         self.d_sim_p_out = self.sim_heads_p * self.sim_heads_p
 
-        # (player) + (opponent) + (similarity of four active type pairs) + (stats of both players active) + (hp summaries)
+        # (player) + (opponent) + (similarity of four active type pairs) + (stats of both players active) + (hp summaries team)
         self.d_hidden_in = self.d_player + self.d_opp + \
-            4 * self.d_sim_opp_out + 12 + 4
+            4 * self.d_sim_opp_out + 12 + 2
 
         self.state_embedding = State2(state_embedding_settings)
         self.state_embedding_settings = state_embedding_settings
@@ -727,8 +727,6 @@ class SmallDeePikachu2(nn.Module):
             active_scores, 
             opponent,
             opponent_active_stats,
-            player_active_hp,
-            opponent_active_hp,
             player_team_hp_ave,
             opponent_team_hp_ave,
         ], dim=1)
