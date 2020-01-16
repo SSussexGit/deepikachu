@@ -28,7 +28,7 @@ from game_coordinator import *
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 MAX_GAME_LEN = 400  # max length is 200 but if you u-turn every turn you move twice per turn
-
+MAX_GAME_CUTOFF = 395 # 395  # cutoff to avoid `Battle.maybeTriggerEndlessBattleClause` error
 
 class ExperienceReplay:
 	def __init__(self, size=20000, minibatch_size=100, gamma=0.99):
@@ -263,7 +263,7 @@ def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_team_si
 			team1 = teams_data.get_random_team(player_team_size)
 			team2 = teams_data.get_random_team(player_team_size)
 
-			# team2 = teams_data.team3
+			# team1 = teams_data.team3
 			# team2 = teams_data.team3
 			# print('Starting game with team: ')
 			# print(team1)
@@ -292,7 +292,7 @@ def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_team_si
 	p1_waiting_for_request_processing = [False for _ in range(K)]
 	p2_waiting_for_request_processing = [False for _ in range(K)]
 
-	ended, ended_ctr = [False for _ in range(K)], 0
+	ended, ended_ctr, turn_ctr = [False for _ in range(K)], 0, [0 for _ in range(K)]
 
 	if verbose:
 		print('[Game threads ended] : ', end='', flush=True)
@@ -305,15 +305,68 @@ def run_parallel_learning_episode(K, p1s, p2s, network, formatid, player_team_si
 		(Amortized speed up of factor K in forward pass with GPU)
 		'''
 
+		# check if max turn count is reached and if so restart game (to avoid endlessBattle error)
+		for k in range(K):
+			if turn_ctr[k] > MAX_GAME_CUTOFF:
+
+				# log
+				print('EARLYCUTOFF: Game was cut off early.')
+				with open(f'output/cutoff_log_k={k}.txt', 'w') as f:
+					for m in games[k]:
+						f.write(m.original_str + '\n')
+
+				# restart game
+				assert(not ended[k])
+
+				turn_ctr[k] = 0
+				games[k] = []
+				p1_outstanding_requests[k] = []
+				p2_outstanding_requests[k] = []
+				p1_waiting_for_request_processing[k] = []
+				p2_waiting_for_request_processing[k] = []
+
+				sim[k].terminate()
+				sim[k].stdin.close()
+				sim[k] = None
+				sim[k] = subprocess.Popen('./pokemon-showdown simulate-battle',
+                   shell=True,
+                   stdin=subprocess.PIPE,
+                   stdout=subprocess.PIPE,
+                   universal_newlines=True)
+				sim[k].stdin.write('>start {"formatid":"' + (formatid) + '"}\n')
+				if player_team_size:
+					team1 = teams_data.get_random_team(player_team_size)
+					team2 = teams_data.get_random_team(player_team_size)
+					sim[k].stdin.write(
+						'>player p1 {"name":"' + p1s[k].name + '"' + ',"team":"' + (team1) + '" }\n')
+					sim[k].stdin.write(
+						'>player p2 {"name":"' + p2s[k].name + '"' + ',"team":"' + (team2) + '" }\n')
+				else:
+					sim[k].stdin.write('>player p1 {"name":"' + p1s[k].name + '" }\n')
+					sim[k].stdin.write('>player p2 {"name":"' + p2s[k].name + '" }\n')
+				sim[k].stdin.flush()
+
+				# restart agent
+				p1s[k].clear_history()
+				p1s[k].end_traj()
+				p1s[k].empty_buffer()
+				p2s[k].clear_history()
+
+
 		# receive a simulation update and inform players for games not waiting for a request process
 		new_messages = [[] for _ in range(K)]
 		message_ids = [set() for _ in range(K)]
 		for k in range(K):
 			if not p1_waiting_for_request_processing[k] and not p2_waiting_for_request_processing[k] and not ended[k]:
 				new = receive_simulator_message(sim[k])
-				new_messages[k] += new
 				message_ids[k] = retrieve_message_ids_set(sim[k], new)
-				games[k] += new
+				for m in new:
+					new_messages[k].append(m)
+					games[k].append(m)
+
+					# update turn count
+					if m.message['id'] == 'turn':
+						turn_ctr[k] = int(m.message['number'])
 
 				# # DEBUG
 				# for m in new:

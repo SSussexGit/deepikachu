@@ -263,7 +263,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 		# DEBUG
 		print('Debug printout')
 		with torch.no_grad():
-			prn = 4
+			prn = 3
 			tmpqa, tmpqb, tmpv = p1net(states)
 			if isinstance(p1net, SmallDeePikachu2):
 				print('Player pkmn alive status: \n', p1net.player.team_alive[0:prn].cpu().numpy())
@@ -399,15 +399,15 @@ if __name__ == '__main__':
 	verbose = True
 
 	# training
-	alpha = 0.75
+	alpha = 0.4
 	warmup_epochs = 5  # random playing
 
 	# experience replay	
 	replay_size = 1e5 
-	minibatch_size = 100
+	minibatch_size = 150
 
-	train_update_iters = 100
-	print_obj_every = 33
+	train_update_iters = 150
+	print_obj_every = 50
 
 	# player 1 neural net (initialize target network the same)
 	p1net = SmallDeePikachu2(
@@ -430,7 +430,7 @@ if __name__ == '__main__':
 	p2s = [RandomAgent(id='p2', name='Blue') for _ in range(parallel_per_batch)]
 
 	# optimizer 
-	lr = 0.0001 #previously used 0.001, 0.0004 (SAC paper recommendation)
+	lr = 0.0001 # 0.0004 (SAC paper recommendation)
 	weight_decay = 1e-5
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 	
