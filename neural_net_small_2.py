@@ -581,7 +581,6 @@ class SmallDeePikachu2(nn.Module):
         # value function
         self.value_function = nn.Sequential(
                 nn.Linear(self.d_context, self.d_context), make_f_activation(),
-                nn.Linear(self.d_context, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1), 
             )
         
@@ -591,24 +590,20 @@ class SmallDeePikachu2(nn.Module):
         self.q_combine_moves_context = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(self.d_q_move_in, self.d_context), make_f_activation(),
-                nn.Linear(self.d_context, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1),
             ),
             nn.Sequential(
                 nn.Linear(self.d_q_move_in, self.d_context), make_f_activation(),
-                nn.Linear(self.d_context, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1),
             )])
         
         self.q_combine_pokemon_context = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(self.d_q_team_in, self.d_context), make_f_activation(),
-                nn.Linear(self.d_context, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1),
             ),
             nn.Sequential(
                 nn.Linear(self.d_q_team_in, self.d_context), make_f_activation(),
-                nn.Linear(self.d_context, self.d_context), make_f_activation(),
                 nn.Linear(self.d_context, 1),
             )])
 
