@@ -58,6 +58,66 @@ def load_model(fname, model, model_target, optimizer):
 	optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 	return model, model_target, optimizer, c, i
 
+def test_parallel_epoch(p1s, p2s, optimizer, p1net, v_target_net, replay,
+	formatid, player_team_size, epoch, 
+	batch_size, parallel_per_batch,
+	fstring, train, wins_array, verbose=True):
+
+	# do an eval epoch on test teams
+	# agent plays argmax of q function
+	p1net.eval()
+	for k in range(parallel_per_batch):
+		p1s[k].evalmode = True
+		p1s[k].warmup = False
+		p1s[k].wins = 0
+
+	p1wins_eval, p2wins_eval = 0, 0
+
+	for j in range(batch_size):
+		winner_strings = run_parallel_learning_episode(
+			parallel_per_batch, p1s, p2s, p1net, formatid=formatid, player_team_size=player_team_size, verbose=False, train=train)
+
+		for k in range(parallel_per_batch):
+			if(winner_strings[k] == p1s[k].name):
+				p1wins_eval += 1
+			if(winner_strings[k] == p2s[k].name):
+				p2wins_eval += 1
+
+			p1s[k].end_traj()
+			p1s[k].clear_history()
+			p2s[k].clear_history()
+
+			# empty the player buffers without storing in replay
+			p1s[k].empty_buffer()
+
+	p1net.train()
+	for k in range(parallel_per_batch):
+		p1s[k].evalmode = False
+
+	p1winrate_eval = float(p1wins_eval) / float(p1wins_eval + p2wins_eval)
+	p2winrate_eval = float(p2wins_eval) / float(p1wins_eval + p2wins_eval)
+
+	if train:
+		title_string = "Train Teams"
+	else:
+		title_string = "Test Teams" 
+
+	print('\n[Epoch {:3d}:'.format(epoch) + title_string + ' Evaluation] ')
+	print('Player 1 | win rate : {:.4f} |  '.format(
+		p1winrate_eval) + 'wins : {:4d}  '.format(p1wins_eval) + int(50 * p1winrate_eval) * '#')
+	print('Player 2 | win rate : {:.4f} |  '.format(
+		p2winrate_eval) + 'wins : {:4d}  '.format(p2wins_eval) + int(50 * p2winrate_eval) * '#')
+
+	#save best training models
+	if(train):
+		# save model if eval win rate improved
+		save_model(fstring, c, i, model=p1net, model_target=v_target_net, optimizer=optimizer)
+
+	wins_array.append(p1winrate_eval)
+	return wins_array
+
+
+	
 
 def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	formatid, player_team_size,
@@ -93,6 +153,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	max_winrate = 0
 	train_win_array = []
 	eval_win_array = []
+	test_win_array = []
 
 	print()
 	print(f'epochs = {epochs}')
@@ -273,59 +334,24 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 			print('QB attack: \n', tmpqb[0:prn, :4].cpu().numpy())
 			print('QB switch: \n', tmpqb[0:prn, 4:].cpu().numpy())
 			print('V:         \n', tmpv[0:prn].cpu().numpy())
-		
-
-		# do an eval epoch
-		if (i % eval_epoch_every == eval_epoch_every - 1):
-
-			# agent plays argmax of q function
-			p1net.eval()
-			for k in range(parallel_per_batch):
-				p1s[k].evalmode = True
-				p1s[k].warmup = False
-				p1s[k].wins = 0
-
-			p1wins_eval, p2wins_eval = 0, 0
-
-			for j in range(batch_size):
-				winner_strings = run_parallel_learning_episode(
-					parallel_per_batch, p1s, p2s, p1net, formatid=formatid, player_team_size=player_team_size, verbose=False, train=True)
-
-				for k in range(parallel_per_batch):
-					if(winner_strings[k] == p1s[k].name):
-						p1wins_eval += 1
-					if(winner_strings[k] == p2s[k].name):
-						p2wins_eval += 1
-
-					p1s[k].end_traj()
-					p1s[k].clear_history()
-					p2s[k].clear_history()
-
-					# empty the player buffers without storing in replay
-					p1s[k].empty_buffer()
-
-			p1net.train()
-			for k in range(parallel_per_batch):
-				p1s[k].evalmode = False
-
-			p1winrate_eval = float(p1wins_eval) / float(p1wins_eval + p2wins_eval)
-			p2winrate_eval = float(p2wins_eval) / float(p1wins_eval + p2wins_eval)
-
-			max_eval_winrate = max(p1winrate_eval, max_winrate)
-
-			print('\n[Epoch {:3d}: Evaluation] '.format(i))
-			print('Player 1 | win rate : {:.4f} |  '.format(
-				p1winrate_eval) + 'wins : {:4d}  '.format(p1wins_eval) + int(50 * p1winrate_eval) * '#')
-			print('Player 2 | win rate : {:.4f} |  '.format(
-				p2winrate_eval) + 'wins : {:4d}  '.format(p2wins_eval) + int(50 * p2winrate_eval) * '#')
-			print('(Player 1 | {}-ave. train win rate : {:.4f})'.format(eval_epoch_every, sum(train_win_array[-(eval_epoch_every):]) / eval_epoch_every ))
 			print()
 
-			if(p1winrate_eval >= max_eval_winrate):
-				# save model if eval win rate improved
-				save_model(fstring, c, i, model=p1net, model_target=v_target_net, optimizer=optimizer)
+		# do an eval epoch 
+		if (i % eval_epoch_every == eval_epoch_every - 1):
 
-			eval_win_array.append(p1winrate_eval)
+			eval_win_array = test_parallel_epoch(p1s, p2s, optimizer, p1net, v_target_net, replay,
+								formatid, player_team_size, i, 
+								int(batch_size/4), parallel_per_batch,
+								fstring, True, eval_win_array, verbose=True)
+
+			test_win_array = test_parallel_epoch(p1s, p2s, optimizer, p1net, v_target_net, replay,
+								formatid, player_team_size, i, 
+								int(batch_size/4), parallel_per_batch,
+								fstring, False, test_win_array, verbose=True)
+
+			print()
+			print('(Player 1 | {}-ave. train win rate : {:.4f})'.format(eval_epoch_every, sum(train_win_array[-(eval_epoch_every):]) / eval_epoch_every ))
+			print()
 
 			with open('output/' + fstring + '_train_win_rates_c=' + str(c) + '_ep=' + str(i) + '.csv', 'w') as myfile:
 				wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
@@ -334,6 +360,10 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 			with open('output/' + fstring + '_eval_win_rates_c=' + str(c) + '_ep=' + str(i) + '.csv', 'w') as myfile:
 				wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
 				wr.writerow(eval_win_array)
+
+			with open('output/' + fstring + '_test_win_rates_c=' + str(c) + '_ep=' + str(i) + '.csv', 'w') as myfile:
+				wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
+				wr.writerow(test_win_array)
 
 
 	# end
@@ -390,9 +420,9 @@ if __name__ == '__main__':
 	
 	# game
 	epochs = 100
-	batch_size = 16
+	batch_size = 16 #make > 4 since we divide by 4 for nuber of evaluation runs
 	parallel_per_batch = 64
-	eval_epoch_every = 5
+	eval_epoch_every = 3 
 	formatid = 'gen5ou'
 
 	gamma = 0.99
@@ -441,7 +471,7 @@ if __name__ == '__main__':
 
 	# optimizer 
 	lr = 0.0001 # 0.0004 (SAC paper recommendation)
-	weight_decay = 1e-5
+	weight_decay = 1e-4
 	optimizer = optim.Adam(p1net.parameters(), lr=lr, weight_decay=weight_decay)
 	
 
