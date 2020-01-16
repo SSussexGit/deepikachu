@@ -118,7 +118,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 		# simulate `BATCH_SIZE` * `PARELLEL_PER_BATCH` games parallelized and store result in replay
 		for j in range(batch_size):
 			winner_strings = run_parallel_learning_episode(
-				parallel_per_batch, p1s, p2s, p1net, formatid=formatid, player_team_size=player_team_size, verbose=False)
+				parallel_per_batch, p1s, p2s, p1net, formatid=formatid, player_team_size=player_team_size, verbose=False, train=True)
 
 			for k in range(parallel_per_batch):
 				if(winner_strings[k] == p1s[k].name):
@@ -288,7 +288,7 @@ def train_parallel_epochs(p1s, p2s, optimizer, p1net, v_target_net, replay,
 
 			for j in range(batch_size):
 				winner_strings = run_parallel_learning_episode(
-					parallel_per_batch, p1s, p2s, p1net, formatid=formatid, player_team_size=player_team_size, verbose=False)
+					parallel_per_batch, p1s, p2s, p1net, formatid=formatid, player_team_size=player_team_size, verbose=False, train=True)
 
 				for k in range(parallel_per_batch):
 					if(winner_strings[k] == p1s[k].name):
