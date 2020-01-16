@@ -416,8 +416,6 @@ class PokemonRepresentation2(nn.Module):
             pokemon_types, 
             relative_hp)
 
-            
-
 class PlayerRepresentation2(nn.Module):
     '''
     `player`/  and `opponent/` 
@@ -507,7 +505,6 @@ class PlayerRepresentation2(nn.Module):
             (team_pokemon_types1, team_pokemon_types2),
             active_hp, 
             team_pokemon_hp)
-
 
 
 '''
@@ -768,7 +765,6 @@ class SmallDeePikachu2(nn.Module):
         return q_values_A, q_values_B, value
         
 
-
 if __name__ == '__main__':
 
     '''
@@ -805,33 +801,5 @@ if __name__ == '__main__':
 
     print('done.')
 
-    # for i in range(34):
-    #     # example_state = state.create_2D_state(2)
-    #     example_state = torch.load(f'output/state_{i}.pt')
-
-    #     out = p1net(copy.deepcopy(example_state))
-
-    #     qa, qb, v = out
-
-    #     print('Q A: ', qa[0])
-    #     print('Q B: ', qb[1])
-    #     print('V  : ', v[2])
-
-
-
-    # increase hp scale
-    # skip hps to the end 
-    #   context: active (already there) sum of team
-    #   after context: active, sum of team
-    #   to each team pokemon: hp of that pokemon
-    '''
-
-    Skip the following variables forward to final prediction layers and context:
-    Own hp percentage * 100
-    Opponent hp percentage * 100
-    Average own team total percentage* 100
-    Average opponent team percentage hp * 100
-    Hp of pokemon to each pokemon representation unprocessed
-    '''
 
 

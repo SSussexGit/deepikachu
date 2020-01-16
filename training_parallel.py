@@ -21,6 +21,7 @@ from data_pokemon import *
 
 import neural_net_small_2
 from neural_net_small_2 import SmallDeePikachu2
+from neural_net_small_2_baseline import BaselineSmallDeePikachu2
 
 from training import LearningAgent, int_to_action, action_to_int, SACAgent, ACTION_SPACE_SIZE
 
@@ -417,8 +418,17 @@ if __name__ == '__main__':
 		layer_norm=True,
         dropout=0.0,
         attention=True)
-	p1net = p1net.to(DEVICE)
 
+	# # Baseline: Deepset replaced with 2 hidden layer FFN; Self-attention/similarity removed
+	p1net = BaselineSmallDeePikachu2(
+		state_embedding_settings,
+		hidden_layer_settings,
+		move_identity=True,
+		layer_norm=True,
+		dropout=0.0,
+		attention=True)
+
+	p1net = p1net.to(DEVICE)
 	v_target_net = copy.deepcopy(p1net)
 	v_target_net.to(DEVICE)
 
@@ -471,20 +481,3 @@ if __name__ == '__main__':
 		wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)
 		wr.writerow(results['eval_win_rates'])
 
-
-
-	# state_embedding_settings = {
-	# 	'pokemon':     {'embed_dim': 32, 'dict_size': neural_net.MAX_TOK_POKEMON},
-	# 	'move':        {'embed_dim': 16, 'dict_size': neural_net.MAX_TOK_MOVE},
-	# 	'type':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TYPE},
-	# 	'move_type':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_MOVE_TYPE},
-	# 	'ability':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ABILITY},
-	# 	'item':        {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ITEM},
-	# 	'condition':   {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_CONDITION},
-	# 	'weather':     {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_WEATHER},
-	# 	'alive':       {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_ALIVE},
-	# 	'disabled':    {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_DISABLED},
-	# 	'spikes':      {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_SPIKES},
-	# 	'toxicspikes': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_TOXSPIKES},
-	# 	'fieldeffect': {'embed_dim': 4, 'dict_size': neural_net.MAX_TOK_FIELD},
-	# }
