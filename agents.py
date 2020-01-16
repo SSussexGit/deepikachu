@@ -243,8 +243,6 @@ class DefaultAgent:
 
             #if active set your active pokemon's details to this
             if(pokemon_dict['active'] == True):
-
-                self.state['player']['team']
                 #update the pp values and disabled status of moves
                 j = 0
                 if 'active' in message['request_dict']:
@@ -273,7 +271,7 @@ class DefaultAgent:
         if 'active' not in message['request_dict']:
             self.state['player']['active'] = default_pokemon_state
         #if we didn't update 6 pokemon fill in remaining spots with default values
-        while i < 5:
+        while i < 6:
             self.state['player']['team'][i] = copy.deepcopy(default_pokemon_state)
             i+=1
         return
