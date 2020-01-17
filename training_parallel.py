@@ -111,7 +111,7 @@ def test_parallel_epoch(p1s, p2s, optimizer, p1net, v_target_net, replay,
 	#save best training models
 	if(train):
 		# save model if eval win rate improved
-		save_model(fstring, c, i, model=p1net, model_target=v_target_net, optimizer=optimizer)
+		save_model(fstring, c, epoch, model=p1net, model_target=v_target_net, optimizer=optimizer)
 
 	wins_array.append(p1winrate_eval)
 	return wins_array
