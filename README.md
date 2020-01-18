@@ -1,5 +1,5 @@
 
-Alakazam
+### Alakazam
 
 Alakazam is a reinforcement learning agent that learns to play the generation 5 Overused format of competitive Pokemon on Pokemon Showdown. It was part of a study on equivariant and invariant neural networks for use in decision making applications. 
 
