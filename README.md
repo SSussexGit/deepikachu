@@ -31,7 +31,7 @@ Define agent types used as follows (if `-p1 agent` or `-p2 agent` not passed, `d
 
 The same as the above file but used to run multiple games at once. This makes training much faster since one forward pass of the neural network handles actions in multiple concurrent games. 
 
-Also contains an experience replay class for storing experience from all distributed agents. This file also contains the ParallelLearningAgent which is the agent class used for training, inheriting from the classes in training.py. 
+Also contains an experience replay class for storing experience from all distributed agents. This file also contains the ParallelLearningAgent which is the agent class used for training, inheriting from the classes in training.py. Overrides the SACAgent to implement Q learning. 
 
 ### agents.py
 
