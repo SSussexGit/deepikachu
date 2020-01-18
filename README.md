@@ -1,11 +1,12 @@
 
-### Alakazam
+##### Alakazam
 
 Alakazam is a reinforcement learning agent that learns to play the generation 5 Overused format of competitive Pokemon on Pokemon Showdown. It was part of a study on equivariant and invariant neural networks for use in decision making applications. 
 
 ------------------------------------------------------------------------
+#### Introduction 
 
-The code make use of the Pokemon Showdown game engine. Therefore the code builds on the server code for Pokemon Showdown [1]. We list here the code written specifically for this project. Any files not included in this list and not in the original Pokemon Showdown server code are deprecated files. 
+The codes make use of the Pokemon Showdown game engine. Therefore the code builds on the server code for Pokemon Showdown [1]. We list here the code written specifically for this project. Any files not included in this list and not in the original Pokemon Showdown server code are deprecated files. 
 
 ### training_parallel.py
 
