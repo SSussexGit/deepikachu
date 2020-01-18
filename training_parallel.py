@@ -450,6 +450,7 @@ if __name__ == '__main__':
         attention=True)
 
 	# # Baseline: Deepset replaced with 2 hidden layer FFN; Self-attention/similarity removed
+	'''
 	p1net = BaselineSmallDeePikachu2(
 		state_embedding_settings,
 		hidden_layer_settings,
@@ -457,7 +458,8 @@ if __name__ == '__main__':
 		layer_norm=True,
 		dropout=0.0,
 		attention=True)
-
+	'''
+	
 	p1net = p1net.to(DEVICE)
 	v_target_net = copy.deepcopy(p1net)
 	v_target_net.to(DEVICE)
