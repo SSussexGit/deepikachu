@@ -57,7 +57,7 @@ Defines mappings from game information to unique integers.
 
 ### teams_data.py
 
-Inc;lues some sample teams and a function that generates teams of a given size using the teams in construct_teams/team_folder. 
+Includes some sample teams and a function that generates teams of a given size using the teams in construct_teams/team_folder. 
 
 ### construct_teams
 
